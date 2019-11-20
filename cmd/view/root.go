@@ -23,6 +23,10 @@ func NewCmd(ctx context.Context, viewService viewservice.ViewService, bqManager 
 				if err != nil {
 					return errors.WithStack(err)
 				}
+				if len(res) == 0 {
+					return nil
+				}
+				// TODO color & format
 				fmt.Println(res)
 
 				return nil
