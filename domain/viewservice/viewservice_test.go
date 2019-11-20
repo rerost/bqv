@@ -2,7 +2,6 @@ package viewservice_test
 
 import (
 	"context"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -16,9 +15,7 @@ import (
 func PrepareDirForTest(dir string) error {
 	projectRoot := os.Getenv("PROJECT_ROOT")
 	cmd := exec.Command("cp", "-a", path.Join(projectRoot, "example/dataset"), dir)
-	fmt.Println(cmd.String())
-	out, err := cmd.CombinedOutput()
-	fmt.Println(string(out))
+	_, err := cmd.CombinedOutput()
 	return err
 }
 
@@ -38,16 +35,14 @@ func TestViewServiceCopy(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	// defer os.RemoveAll(dirTest1)
-	fmt.Println(dirTest1)
+	defer os.RemoveAll(dirTest1)
 	PrepareDirForTest(dirTest1)
 
 	dirTest2, err := ioutil.TempDir("", "test1")
 	if err != nil {
 		t.Error(err)
 	}
-	// defer os.RemoveAll(dirTest2)
-	fmt.Println(dirTest2)
+	defer os.RemoveAll(dirTest2)
 
 	fileManager1 := viewmanager.NewFileManager(dirTest1)
 	fileManager2 := viewmanager.NewFileManager(dirTest2)
