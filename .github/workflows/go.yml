@@ -48,7 +48,7 @@ jobs:
             dep ensure
         fi
 
-    - name: Build
+    - name: Test
       run: |
         export PROJECT_ROOT=$(pwd)
         go test -v ./...
