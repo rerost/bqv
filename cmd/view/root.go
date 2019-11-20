@@ -19,7 +19,7 @@ func NewCmd(ctx context.Context, viewService viewservice.ViewService, bqManager 
 		&cobra.Command{
 			Use: "diff",
 			RunE: func(_ *cobra.Command, args []string) error {
-				res, err := viewService.Diff(ctx)
+				res, err := viewService.Diff(ctx, fileManager, bqManager)
 				if err != nil {
 					return errors.WithStack(err)
 				}
@@ -29,9 +29,20 @@ func NewCmd(ctx context.Context, viewService viewservice.ViewService, bqManager 
 			},
 		},
 		&cobra.Command{
-			Use: "sync",
+			Use: "apply",
 			RunE: func(_ *cobra.Command, args []string) error {
-				err := viewService.Sync(ctx)
+				err := viewService.Copy(ctx, fileManager, bqManager)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+
+				return nil
+			},
+		},
+		&cobra.Command{
+			Use: "apply",
+			RunE: func(_ *cobra.Command, args []string) error {
+				err := viewService.Copy(ctx, bqManager, fileManager)
 				if err != nil {
 					return errors.WithStack(err)
 				}

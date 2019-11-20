@@ -3,8 +3,8 @@ package viewservice
 import "context"
 
 type ViewService interface {
-	Diff(ctx context.Context) (string, error)
-	Sync(ctx context.Context) error
+	Diff(ctx context.Context, src ViewReader, dst ViewReader) (string, error)
+	Copy(ctx context.Context, src ViewReader, dst ViewReadWriter) error
 }
 
 type View interface {
@@ -14,8 +14,8 @@ type View interface {
 }
 
 type ViewReader interface {
-	List(ctx context.Context) []View
-	Get(ctx context.Context, dataset string, name string) View
+	List(ctx context.Context) ([]View, error)
+	Get(ctx context.Context, dataset string, name string) (View, error)
 }
 
 type ViewWriter interface {
@@ -38,7 +38,7 @@ func NewService() ViewService {
 	return viewServiceImpl{}
 }
 
-func (s viewServiceImpl) Diff(ctx context.Context, src ViewReader, dst ViewReadWriter) (string, error) {
+func (s viewServiceImpl) Diff(ctx context.Context, src ViewReader, dst ViewReader) (string, error) {
 	// TODO
 	return "", nil
 }
