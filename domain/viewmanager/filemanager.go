@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/pkg/errors"
 )
@@ -58,7 +59,7 @@ func (f FileManager) List(ctx context.Context) ([]View, error) {
 				return nil, errors.Wrap(errors.New("Unexpected dir found"), file.Name())
 			}
 
-			name := file.Name()
+			name := strings.TrimSuffix(file.Name(), ".sql")
 			bquery, err := ioutil.ReadFile(f.Path(fileView{dataSet: dataSet, name: name}))
 			if err != nil {
 				return nil, errors.WithStack(err)
@@ -73,9 +74,15 @@ func (f FileManager) List(ctx context.Context) ([]View, error) {
 		}
 	}
 
-	return nil, nil
+	return views, nil
 }
 func (f FileManager) Get(ctx context.Context, dataset string, name string) (View, error) {
+	if _, err := os.Stat(f.Path(fileView{dataSet: dataset, name: name})); err != nil {
+		if os.IsNotExist(err) {
+			return nil, NotFoundError
+		}
+		return nil, err
+	}
 	bquery, err := ioutil.ReadFile(f.Path(fileView{dataSet: dataset, name: name}))
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -88,6 +95,17 @@ func (f FileManager) Get(ctx context.Context, dataset string, name string) (View
 	}, nil
 }
 func (f FileManager) Create(ctx context.Context, view View) (View, error) {
+	if _, err := os.Stat(f.DatasetPath(view)); err != nil {
+		if os.IsNotExist(err) {
+			err := os.Mkdir(f.DatasetPath(view), 0755)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+		} else {
+			return nil, err
+		}
+	}
+
 	file, err := os.Create(f.Path(view))
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -105,8 +123,16 @@ func (f FileManager) Create(ctx context.Context, view View) (View, error) {
 		query:   view.Query(),
 	}, nil
 }
+
 func (f FileManager) Update(ctx context.Context, view View) (View, error) {
+	if _, err := os.Stat(f.Path(view)); err != nil {
+		if os.IsNotExist(err) {
+			return nil, NotFoundError
+		}
+		return nil, err
+	}
 	file, err := os.OpenFile(f.Path(view), os.O_WRONLY, 0222)
+	//
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -126,4 +152,8 @@ func (f FileManager) Delete(ctx context.Context, view View) error {
 
 func (f FileManager) Path(view View) string {
 	return path.Join(f.dir, view.DataSet(), view.Name()+".sql")
+}
+
+func (f FileManager) DatasetPath(view View) string {
+	return path.Join(f.dir, view.DataSet())
 }

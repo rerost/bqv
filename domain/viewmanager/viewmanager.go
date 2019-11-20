@@ -1,6 +1,10 @@
 package viewmanager
 
-import "context"
+import (
+	"context"
+
+	"github.com/pkg/errors"
+)
 
 type View interface {
 	DataSet() string
@@ -24,4 +28,4 @@ type ViewReadWriter interface {
 	ViewWriter
 }
 
-type NotFoundError error
+var NotFoundError = errors.New("NotFound")
