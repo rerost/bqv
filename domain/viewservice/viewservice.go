@@ -36,7 +36,7 @@ func (s viewServiceImpl) Diff(ctx context.Context, src ViewReader, dst ViewReade
 	diffViews := []View{}
 	for _, srcView := range srcList {
 		dstView, err := dst.Get(ctx, srcView.DataSet(), srcView.Name())
-		if _, ok := err.(viewmanager.NotFoundError); ok {
+		if err == viewmanager.NotFoundError {
 			err = nil
 			diffView, err := diff(srcView, nil)
 			if err != nil {
@@ -63,7 +63,7 @@ func (s viewServiceImpl) Copy(ctx context.Context, src ViewReader, dst ViewWrite
 
 	for _, srcView := range srcList {
 		_, err := dst.Update(ctx, srcView)
-		if _, ok := err.(viewmanager.NotFoundError); ok {
+		if err == viewmanager.NotFoundError {
 			_, err = dst.Create(ctx, srcView)
 		}
 		if err != nil {
@@ -139,6 +139,12 @@ func matchInclude(v View, vs []View) bool {
 }
 
 func match(v1, v2 View) bool {
+	if v1 == v2 && v1 == nil {
+		return true
+	}
+	if v1 == nil || v2 == nil {
+		return false
+	}
 	return v1.Name() == v2.Name() && v1.DataSet() == v2.DataSet()
 }
 
