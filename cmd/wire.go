@@ -14,12 +14,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewBQClient(ctx context.Context, cfg Config) (bqiface.Client, error) {
+func NewBQClient(ctx context.Context, cfg Config) (viewmanager.BQClient, error) {
 	c, err := bigquery.NewClient(ctx, cfg.ProjectID)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	return bqiface.AdaptClient(c), nil
+	return viewmanager.BQClient(bqiface.AdaptClient(c)), nil
 }
 
 func NewFileManager(cfg Config) viewmanager.FileManager {

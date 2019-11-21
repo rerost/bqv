@@ -10,10 +10,14 @@ import (
 )
 
 type BQManager struct {
-	bqClient bqiface.Client
+	bqClient BQClient
 }
 
-func NewBQManager(bqClient bqiface.Client) BQManager {
+type BQClient interface {
+	bqiface.Client
+}
+
+func NewBQManager(bqClient BQClient) BQManager {
 	return BQManager{
 		bqClient: bqClient,
 	}
