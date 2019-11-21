@@ -4,15 +4,16 @@ import (
 	"context"
 
 	"cloud.google.com/go/bigquery"
+	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 )
 
 type BQManager struct {
-	bqClient *bigquery.Client
+	bqClient bqiface.Client
 }
 
-func NewBQManager(bqClient *bigquery.Client) BQManager {
+func NewBQManager(bqClient bqiface.Client) BQManager {
 	return BQManager{
 		bqClient: bqClient,
 	}
