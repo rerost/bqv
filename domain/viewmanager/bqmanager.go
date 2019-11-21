@@ -6,6 +6,7 @@ import (
 	"cloud.google.com/go/bigquery"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
 	"github.com/pkg/errors"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 )
 
@@ -72,14 +73,9 @@ func (b BQManager) List(ctx context.Context) ([]View, error) {
 				continue
 			}
 
-			dsmd, err := dataset.Metadata(ctx)
-			if err != nil {
-				return nil, errors.WithStack(err)
-			}
-
 			views = append(views, bqView{
-				dataSet: dsmd.Name,
-				name:    tmd.Name,
+				dataSet: dataset.DatasetID(),
+				name:    table.TableID(),
 				query:   tmd.ViewQuery,
 			})
 		}
@@ -92,6 +88,9 @@ func (b BQManager) Get(ctx context.Context, dataset string, name string) (View, 
 	t := ds.Table(name)
 	tmd, err := t.Metadata(ctx)
 	if err != nil {
+		if e, ok := err.(*googleapi.Error); ok && e.Code == 404 {
+			return nil, NotFoundError
+		}
 		return nil, errors.WithStack(err)
 	}
 
@@ -103,6 +102,15 @@ func (b BQManager) Get(ctx context.Context, dataset string, name string) (View, 
 }
 func (b BQManager) Create(ctx context.Context, view View) (View, error) {
 	ds := b.bqClient.Dataset(view.DataSet())
+	_, err := ds.Metadata(ctx)
+	if err != nil {
+		if e, ok := err.(*googleapi.Error); ok && e.Code == 404 {
+			err := ds.Create(ctx, &bqiface.DatasetMetadata{})
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+		}
+	}
 	t := ds.Table(view.Name())
 	t.Create(ctx, &bigquery.TableMetadata{
 		Name:      view.Name(),
@@ -114,11 +122,22 @@ func (b BQManager) Create(ctx context.Context, view View) (View, error) {
 func (b BQManager) Update(ctx context.Context, view View) (View, error) {
 	ds := b.bqClient.Dataset(view.DataSet())
 	t := ds.Table(view.Name())
-	t.Update(ctx, bigquery.TableMetadataToUpdate{
+	_, err := t.Update(ctx, bigquery.TableMetadataToUpdate{
 		ViewQuery: view.Query(),
 	}, "")
+	if err != nil {
+		if e, ok := err.(*googleapi.Error); ok && e.Code == 404 {
+			return nil, NotFoundError
+		}
+		return nil, errors.WithStack(err)
+	}
 
-	return b.Get(ctx, view.DataSet(), view.Name())
+	view, err = b.Get(ctx, view.DataSet(), view.Name())
+	if err == NotFoundError {
+		return nil, NotFoundError
+	}
+
+	return view, nil
 }
 func (b BQManager) Delete(ctx context.Context, view View) error {
 	ds := b.bqClient.Dataset(view.DataSet())

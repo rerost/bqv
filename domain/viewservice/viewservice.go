@@ -2,10 +2,12 @@ package viewservice
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"github.com/rerost/bqv/domain/viewmanager"
+	"go.uber.org/zap"
 )
 
 type View = viewmanager.View
@@ -14,6 +16,7 @@ type ViewWriter = viewmanager.ViewWriter
 type ViewReader = viewmanager.ViewReader
 
 type ViewService interface {
+	List(ctx context.Context, src ViewReader) ([]View, error)
 	Diff(ctx context.Context, src ViewReader, dst ViewReader) ([]View, error)
 	Copy(ctx context.Context, src ViewReader, dst ViewWriter) error
 }
@@ -27,9 +30,15 @@ func NewService() ViewService {
 	return viewServiceImpl{}
 }
 
+func (s viewServiceImpl) List(ctx context.Context, src ViewReader) ([]View, error) {
+	return src.List(ctx)
+}
+
 func (s viewServiceImpl) Diff(ctx context.Context, src ViewReader, dst ViewReader) ([]View, error) {
+	zap.L().Debug("Start Diff")
 	srcList, err := src.List(ctx)
 	if err != nil {
+		zap.L().Debug("Failed to List", zap.String("src type", fmt.Sprintf("%T", src)))
 		return nil, errors.WithStack(err)
 	}
 
@@ -114,12 +123,36 @@ func (d diffView) Query() string {
 	return d.query
 }
 
-func diff(source View, destination View) (View, error) {
+func diff(source View, destination View) (diffView, error) {
+	if source == nil && destination == nil {
+		return diffView{}, nil
+	}
+	if source == nil {
+		return diffView{
+			dataSet: destination.DataSet(),
+			name:    destination.Name(),
+			query:   destination.Query(),
+		}, nil
+	}
+	if destination == nil {
+		return diffView{
+			dataSet: source.DataSet(),
+			name:    source.Name(),
+			query:   source.Query(),
+		}, nil
+	}
 	if !match(source, destination) {
-		return nil, errors.New("Failed to diff")
+		zap.L().Debug(
+			"Failed to diff",
+			zap.String("source name", source.Name()),
+			zap.String("destination name", destination.Name()),
+			zap.String("source dataset", source.DataSet()),
+			zap.String("destination dataset", destination.DataSet()),
+		)
+		return diffView{}, errors.New("Failed to diff")
 	}
 	if equal(source, destination) {
-		return nil, nil
+		return diffView{}, nil
 	}
 
 	return diffView{

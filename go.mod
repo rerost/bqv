@@ -3,7 +3,6 @@ module github.com/rerost/bqv
 go 1.13
 
 require (
-	cloud.google.com/go v0.44.3
 	cloud.google.com/go/bigquery v1.0.1
 	github.com/golang/mock v1.3.1
 	github.com/google/go-cmp v0.3.0

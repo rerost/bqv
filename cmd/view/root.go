@@ -44,12 +44,38 @@ func NewCmd(ctx context.Context, viewService viewservice.ViewService, bqManager 
 			},
 		},
 		&cobra.Command{
-			Use: "apply",
+			Use: "dump",
 			RunE: func(_ *cobra.Command, args []string) error {
 				err := viewService.Copy(ctx, bqManager, fileManager)
 				if err != nil {
 					return errors.WithStack(err)
 				}
+
+				return nil
+			},
+		},
+		&cobra.Command{
+			Use: "flist",
+			RunE: func(_ *cobra.Command, args []string) error {
+				views, err := viewService.List(ctx, fileManager)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				// TODO color & format
+				fmt.Println(views)
+
+				return nil
+			},
+		},
+		&cobra.Command{
+			Use: "blist",
+			RunE: func(_ *cobra.Command, args []string) error {
+				views, err := viewService.List(ctx, bqManager)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				// TODO color & format
+				fmt.Println(views)
 
 				return nil
 			},
