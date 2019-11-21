@@ -3,9 +3,12 @@ To manage views
 
 ## Usage
 ```
-bqv view diff <DATASET_DIR>
-bqv view apply <DATASET_DIR>
-bqv view dump <DATASET_DIR>
+bq view --dir=<DATASET_DIR> --projectid=<BQ_PROJECT_ID>
+bqv view diff # TODO not color, not formatting
+bqv view apply
+bqv view dump
+
+# TODO
 bqv test <DATASET_DIR>
 bqv test <DATASET_DIR>/<VIEW>
 ```
