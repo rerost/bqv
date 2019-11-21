@@ -1,5 +1,6 @@
 # bqv
-To manage views
+To manage views.
+Example repository https://github.com/rerost/bqv-example
 
 ## Usage
 ```
