@@ -42,7 +42,10 @@ func Run() error {
 	}
 
 	if err := cmd.Execute(); err != nil {
-		zap.L().Debug("error", zap.String("stack trace", fmt.Sprintf("%+v\n", err)))
+		if cfg.Debug {
+			fmt.Printf("%+v\n", err)
+		}
+		// zap.L().Debug("error", zap.String("stack trace", fmt.Sprintf("%+v\n", err)))
 	}
 	return nil
 }
@@ -60,6 +63,11 @@ func NewLogger(cfg Config) (*zap.Logger, error) {
 }
 
 func NewConfig() (Config, error) {
+	pflag.StringP("projectid", "", "", "GCP ProjectID")
+	pflag.StringP("dir", "", "", "Dir for datasets")
+	pflag.BoolP("verbose", "v", false, "")
+	pflag.BoolP("debug", "d", false, "")
+
 	viper.AutomaticEnv()
 	viper.BindPFlags(pflag.CommandLine)
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 type FileManager struct {
@@ -37,6 +38,7 @@ func NewFileManager(dir string) FileManager {
 }
 
 func (f FileManager) List(ctx context.Context) ([]View, error) {
+	zap.L().Debug("Open file", zap.String("dir", f.dir))
 	dir := f.dir
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
