@@ -73,9 +73,13 @@ func (s viewServiceImpl) Copy(ctx context.Context, src ViewReader, dst ViewWrite
 	for _, srcView := range srcList {
 		_, err := dst.Update(ctx, srcView)
 		if err == viewmanager.NotFoundError {
-			_, err = dst.Create(ctx, srcView)
-		}
-		if err != nil {
+			zap.L().Debug("Creating view", zap.String("Dataset", srcView.DataSet()), zap.String("Table", srcView.Name()))
+			_, err := dst.Create(ctx, srcView)
+			if err != nil {
+				zap.L().Debug("Failed to create view", zap.String("Dataset", srcView.DataSet()), zap.String("Table", srcView.Name()))
+				return errors.WithStack(err)
+			}
+		} else {
 			return errors.WithStack(err)
 		}
 	}

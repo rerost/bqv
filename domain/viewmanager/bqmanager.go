@@ -6,6 +6,7 @@ import (
 	"cloud.google.com/go/bigquery"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 )
@@ -106,6 +107,7 @@ func (b BQManager) Create(ctx context.Context, view View) (View, error) {
 	if err != nil {
 		if e, ok := err.(*googleapi.Error); ok && e.Code == 404 {
 			err := ds.Create(ctx, &bqiface.DatasetMetadata{})
+			zap.L().Debug("Failed to create dataset", zap.String("err", err.Error()))
 			if err != nil {
 				return nil, errors.WithStack(err)
 			}
@@ -126,6 +128,7 @@ func (b BQManager) Update(ctx context.Context, view View) (View, error) {
 		ViewQuery: view.Query(),
 	}, "")
 	if err != nil {
+		zap.L().Debug("Failed to update view", zap.String("err", err.Error()))
 		if e, ok := err.(*googleapi.Error); ok && e.Code == 404 {
 			return nil, NotFoundError
 		}
@@ -134,6 +137,7 @@ func (b BQManager) Update(ctx context.Context, view View) (View, error) {
 
 	view, err = b.Get(ctx, view.DataSet(), view.Name())
 	if err == NotFoundError {
+		zap.L().Debug("Failed to get view", zap.String("err", err.Error()))
 		return nil, NotFoundError
 	}
 
