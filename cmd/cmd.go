@@ -45,6 +45,7 @@ func Run() error {
 		if cfg.Debug {
 			fmt.Printf("%+v\n", err)
 		}
+		return errors.WithStack(err)
 		// zap.L().Debug("error", zap.String("stack trace", fmt.Sprintf("%+v\n", err)))
 	}
 	return nil
