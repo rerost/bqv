@@ -89,6 +89,7 @@ func (b BQManager) Get(ctx context.Context, dataset string, name string) (View, 
 	t := ds.Table(name)
 	tmd, err := t.Metadata(ctx)
 	if err != nil {
+		zap.L().Debug("Error when get metadata", zap.String("err", err.Error()))
 		if e, ok := err.(*googleapi.Error); ok && e.Code == 404 {
 			return nil, NotFoundError
 		}
@@ -136,9 +137,13 @@ func (b BQManager) Update(ctx context.Context, view View) (View, error) {
 	}
 
 	view, err = b.Get(ctx, view.DataSet(), view.Name())
-	if err == NotFoundError {
+	if err != nil {
 		zap.L().Debug("Failed to get view", zap.String("err", err.Error()))
-		return nil, NotFoundError
+		if err == NotFoundError {
+			return nil, NotFoundError
+		} else {
+			return nil, errors.WithStack(err)
+		}
 	}
 
 	return view, nil
