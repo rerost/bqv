@@ -107,7 +107,7 @@ func (b BQManager) Create(ctx context.Context, view View) (View, error) {
 	_, err := ds.Metadata(ctx)
 	if err != nil {
 		if e, ok := err.(*googleapi.Error); ok && e.Code == 404 {
-			err := ds.Create(ctx, &bqiface.DatasetMetadata{})
+			err := ds.Create(ctx, &bqiface.DatasetMetadata{Location: "US"})
 			zap.L().Debug("Failed to create dataset", zap.String("err", err.Error()))
 			if err != nil {
 				return nil, errors.WithStack(err)
