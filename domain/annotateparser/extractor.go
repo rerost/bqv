@@ -18,7 +18,11 @@ type Extractor interface {
 type extractorImpl struct {
 }
 
-func Extract(manifest string) ([]string, error) {
+func NewExtractor() Extractor {
+	return extractorImpl{}
+}
+
+func (e extractorImpl) Extract(manifest string) ([]string, error) {
 	matched := annotationsRegexp.FindAll([]byte(manifest), -1)
 	if len(matched) == 0 {
 		return nil, nil
