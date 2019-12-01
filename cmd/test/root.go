@@ -13,7 +13,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-func NewCmd(ctx context.Context, validate validator.Validator, ap annotateparser.Parser, ape annotateparser.Extractor) *cobra.Command {
+func NewCmd(ctx context.Context, validate validator.Validator, apm annotateparser.Manifests) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:  "test",
 		Args: cobra.ExactArgs(1),
@@ -24,19 +24,14 @@ func NewCmd(ctx context.Context, validate validator.Validator, ap annotateparser
 				return errors.WithStack(err)
 			}
 
-			rawAnnotations, err := ape.Extract(string(targetFile))
+			manifests, err := apm.Manifests(ctx, string(targetFile))
 			if err != nil {
 				return errors.WithStack(err)
 			}
 
-			annotations, err := ap.Parse(ctx, rawAnnotations[0])
-			if err != nil {
-				return errors.WithStack(err)
-			}
-
-			validates := make([]types.Validate, 0, len(annotations))
+			validates := make([]types.Validate, 0, len(manifests))
 			var validatesSize = 0
-			for _, annotation := range annotations {
+			for _, annotation := range manifests {
 				if annotation.Type() != "bqv:TEST" {
 					continue
 				}
