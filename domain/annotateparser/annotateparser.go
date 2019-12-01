@@ -2,7 +2,6 @@ package annotateparser
 
 import (
 	"context"
-	"fmt"
 	"strings"
 )
 
@@ -31,14 +30,15 @@ func (p parserImpl) Parse(ctx context.Context, annotation string) ([]Manifest, e
 	readedManifestLine := 0
 	for i, line := range lines {
 		if strings.HasPrefix(line, "[") {
-			if i != 0 && readedManifestLine == 0 {
+			// NOTE:
+			if i != 0 {
 				// Flush
 				manifests = append(manifests, newManifest(buf, mType))
 			}
 			// Prepare for next manifest
 			readedManifestLine = 0
-			mType = strings.TrimPrefix(strings.TrimSuffix(line, "]"), "[")
 			buf = ""
+			mType = strings.TrimPrefix(strings.TrimSuffix(line, "]"), "[")
 			continue
 		}
 		if readedManifestLine != 0 {
@@ -52,7 +52,6 @@ func (p parserImpl) Parse(ctx context.Context, annotation string) ([]Manifest, e
 		}
 	}
 
-	fmt.Println(manifests)
 	return manifests, nil
 }
 

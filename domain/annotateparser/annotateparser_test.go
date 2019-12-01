@@ -20,8 +20,7 @@ func TestParse(t *testing.T) {
 		out  []Out
 	}{
 		{
-			in: `
-[bqv:TEST]
+			in: `[bqv:TEST]
 - test_count
   - target: |
     SELECT owner_user_id
@@ -37,6 +36,30 @@ func TestParse(t *testing.T) {
     FROM dataset.view
     GROUP BY owner_user_id
 			`,
+				},
+			},
+		},
+		{
+			in: `[bqv:TEST]
+- test_count
+  - target: |
+    SELECT 1
+[bqv:TEST]
+- test_count
+  - target: |
+    SELECT 2`,
+			out: []Out{
+				{
+					Type: "bqv:TEST",
+					Body: `- test_count
+  - target: |
+    SELECT 1`,
+				},
+				{
+					Type: "bqv:TEST",
+					Body: `- test_count
+  - target: |
+    SELECT 2`,
 				},
 			},
 		},

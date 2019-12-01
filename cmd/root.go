@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 
+	"github.com/rerost/bqv/cmd/test"
 	"github.com/rerost/bqv/cmd/view"
 	"github.com/rerost/bqv/domain/viewmanager"
 	"github.com/rerost/bqv/domain/viewservice"
@@ -22,6 +23,7 @@ func NewCmdRoot(
 
 	cmd.AddCommand(
 		view.NewCmd(ctx, viewService, bqManager, fileManager),
+		test.NewCmd(ctx),
 	)
 
 	return cmd
