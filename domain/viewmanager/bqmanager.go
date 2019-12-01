@@ -106,11 +106,11 @@ func (b BQManager) Create(ctx context.Context, view View) (View, error) {
 	ds := b.bqClient.Dataset(view.DataSet())
 	_, err := ds.Metadata(ctx)
 	if err != nil {
+		zap.L().Debug("Failed to create dataset", zap.String("err", err.Error()))
 		if e, ok := err.(*googleapi.Error); ok && e.Code == 404 {
 			err := ds.Create(
 				ctx,
 				&bqiface.DatasetMetadata{DatasetMetadata: bigquery.DatasetMetadata{Location: "US"}})
-			zap.L().Debug("Failed to create dataset", zap.String("err", err.Error()))
 			if err != nil {
 				return nil, errors.WithStack(err)
 			}
