@@ -117,10 +117,17 @@ func (b BQManager) Create(ctx context.Context, view View) (View, error) {
 		}
 	}
 	t := ds.Table(view.Name())
-	t.Create(ctx, &bigquery.TableMetadata{
-		Name:      view.Name(),
-		ViewQuery: view.Query(),
-	})
+	err = t.Create(
+		ctx,
+		&bigquery.TableMetadata{
+			Name:      view.Name(),
+			ViewQuery: view.Query(),
+		},
+	)
+	if err != nil {
+		zap.L().Debug("Failed to create table", zap.String("Err", err.Error()))
+		return nil, errors.WithStack(err)
+	}
 
 	return b.Get(ctx, view.DataSet(), view.Name())
 }
