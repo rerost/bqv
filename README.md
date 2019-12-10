@@ -2,6 +2,17 @@
 To manage views.
 Example repository https://github.com/rerost/bqv-example
 
+## Required permissions for apply
+```
+bigquery.datasets.create
+bigquery.datasets.get
+bigquery.tables.create
+bigquery.tables.get
+bigquery.tables.list
+bigquery.tables.update
+bigquery.tables.getData
+```
+
 ## Usage
 ```
 ## Base
