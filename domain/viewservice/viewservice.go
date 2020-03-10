@@ -184,7 +184,7 @@ func matchInclude(v View, vs []View) bool {
 }
 
 func match(v1, v2 View) bool {
-	if v1 == v2 && v1 == nil {
+	if v1 == nil && v1 == v2 {
 		return true
 	}
 	if v1 == nil || v2 == nil {

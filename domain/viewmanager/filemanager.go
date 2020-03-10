@@ -89,15 +89,13 @@ func (f FileManager) List(ctx context.Context) ([]View, error) {
 				return nil, errors.WithStack(err)
 			}
 
+			setting := fileSetting{}
 			sSetting, err := ioutil.ReadFile(f.SettingPath(inCompleteFileView))
-			if err != nil {
-				return nil, errors.WithStack(err)
+			if err == nil {
+				if err := yaml.Unmarshal(sSetting, &setting); err != nil {
+					return nil, errors.WithMessagef(err, "Failed to parse %s", f.SettingPath(inCompleteFileView))
+				}
 			}
-			var setting fileSetting
-			if err := yaml.Unmarshal(sSetting, &setting); err != nil {
-				return nil, errors.WithMessagef(err, "Failed to parse %s", f.SettingPath(inCompleteFileView))
-			}
-
 			v := fileView{
 				dataSet: dataSet,
 				name:    name,
@@ -235,7 +233,7 @@ func (f FileManager) DatasetPath(view View) string {
 }
 
 func (f FileManager) SettingPath(view View) string {
-	return path.Join(f.dir, view.DataSet(), view.Name()+"yml")
+	return path.Join(f.dir, view.DataSet(), view.Name()+".yml")
 }
 
 func (f FileManager) convertToFileView(view View) fileView {
