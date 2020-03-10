@@ -3,6 +3,7 @@ package viewmanager
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"cloud.google.com/go/bigquery"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
@@ -218,8 +219,15 @@ func (b BQManager) converToTmd(view View) (bigquery.TableMetadata, error) {
 	var labels map[string]string
 	{
 		l := view.Setting().Metadata()["labels"]
+		var ls map[interface{}]interface{}
 		if l != nil {
-			labels = l.(map[string]string)
+			ls = l.(map[interface{}]interface{})
+		}
+		labels = map[string]string{}
+		for k, v := range ls {
+			if v != nil {
+				labels[fmt.Sprint(k)] = fmt.Sprint(v)
+			}
 		}
 	}
 	return bigquery.TableMetadata{
