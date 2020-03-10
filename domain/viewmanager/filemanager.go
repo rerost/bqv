@@ -58,7 +58,13 @@ func (f FileManager) List(ctx context.Context) ([]View, error) {
 		}
 		for _, file := range files {
 			if file.IsDir() {
-				return nil, errors.Wrap(errors.New("Unexpected dir found"), file.Name())
+				zap.L().Info("Unexpected dir found", zap.String("dir name", file.Name()))
+				continue
+			}
+
+			if !strings.HasSuffix(file.Name(), ".sql") {
+				zap.L().Info("Not sql file found", zap.String("file name", file.Name()))
+				continue
 			}
 
 			name := strings.TrimSuffix(file.Name(), ".sql")
