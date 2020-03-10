@@ -2,6 +2,7 @@ package viewmanager
 
 import (
 	"context"
+	"encoding/json"
 
 	"cloud.google.com/go/bigquery"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
@@ -29,6 +30,15 @@ type bqView struct {
 	dataSet string
 	name    string
 	query   string
+	setting bqSetting
+}
+
+type bqSetting struct {
+	metadata map[string]interface{}
+}
+
+func (b bqSetting) Metadata() map[string]interface{} {
+	return b.metadata
 }
 
 func (b bqView) DataSet() string {
@@ -41,6 +51,10 @@ func (b bqView) Name() string {
 
 func (b bqView) Query() string {
 	return b.query
+}
+
+func (b bqView) Setting() Setting {
+	return Setting(b.setting)
 }
 
 func (b BQManager) List(ctx context.Context) ([]View, error) {
@@ -96,10 +110,18 @@ func (b BQManager) Get(ctx context.Context, dataset string, name string) (View, 
 		return nil, errors.WithStack(err)
 	}
 
+	metadata, err := b.convertTmdToMetadata(tmd)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	return bqView{
 		dataSet: dataset,
 		name:    name,
 		query:   tmd.ViewQuery,
+		setting: bqSetting{
+			metadata: metadata,
+		},
 	}, nil
 }
 func (b BQManager) Create(ctx context.Context, view View) (View, error) {
@@ -117,12 +139,14 @@ func (b BQManager) Create(ctx context.Context, view View) (View, error) {
 		}
 	}
 	t := ds.Table(view.Name())
+	tmd, err := b.converToTmd(view)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	err = t.Create(
 		ctx,
-		&bigquery.TableMetadata{
-			Name:      view.Name(),
-			ViewQuery: view.Query(),
-		},
+		&tmd,
 	)
 	if err != nil {
 		zap.L().Debug("Failed to create table", zap.String("Err", err.Error()))
@@ -134,9 +158,15 @@ func (b BQManager) Create(ctx context.Context, view View) (View, error) {
 func (b BQManager) Update(ctx context.Context, view View) (View, error) {
 	ds := b.bqClient.Dataset(view.DataSet())
 	t := ds.Table(view.Name())
-	_, err := t.Update(ctx, bigquery.TableMetadataToUpdate{
-		ViewQuery: view.Query(),
-	}, "")
+	tmd, err := b.converToTmd(view)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	tmdForUpdate, err := b.convertTmdToForUpdate(tmd)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	_, err = t.Update(ctx, tmdForUpdate, "")
 	if err != nil {
 		zap.L().Debug("Failed to update view", zap.String("err", err.Error()))
 		if e, ok := err.(*googleapi.Error); ok && e.Code == 404 {
@@ -161,4 +191,40 @@ func (b BQManager) Delete(ctx context.Context, view View) error {
 	ds := b.bqClient.Dataset(view.DataSet())
 	t := ds.Table(view.Name())
 	return errors.WithStack(t.Delete(ctx))
+}
+
+func (b BQManager) convertTmdToMetadata(tmd *bigquery.TableMetadata) (map[string]interface{}, error) {
+	out, err := json.Marshal(tmd)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	var res map[string]interface{}
+	if err := json.Unmarshal(out, &res); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return res, nil
+}
+
+func (b BQManager) converToTmd(view View) (bigquery.TableMetadata, error) {
+	return bigquery.TableMetadata{
+		Name:        view.Name(),
+		ViewQuery:   view.Query(),
+		Description: view.Setting().Metadata()["description"].(string),
+		Labels:      view.Setting().Metadata()["labels"].(map[string]string),
+	}, nil
+}
+
+func (b BQManager) convertTmdToForUpdate(tmd bigquery.TableMetadata) (bigquery.TableMetadataToUpdate, error) {
+	tmdForUpdate := bigquery.TableMetadataToUpdate{
+		Name:        tmd.Name,
+		ViewQuery:   tmd.ViewQuery,
+		Description: tmd.Description,
+	}
+
+	for k, v := range tmd.Labels {
+		tmdForUpdate.SetLabel(k, v)
+	}
+	return tmdForUpdate, nil
 }

@@ -6,10 +6,15 @@ import (
 	"github.com/pkg/errors"
 )
 
+type Setting interface {
+	Metadata() map[string]interface{}
+}
+
 type View interface {
 	DataSet() string
 	Name() string
 	Query() string
+	Setting() Setting
 }
 
 type ViewReader interface {
