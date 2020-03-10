@@ -208,11 +208,25 @@ func (b BQManager) convertTmdToMetadata(tmd *bigquery.TableMetadata) (map[string
 }
 
 func (b BQManager) converToTmd(view View) (bigquery.TableMetadata, error) {
+	var description string
+	{
+		d := view.Setting().Metadata()["description"]
+		if d != nil {
+			description = d.(string)
+		}
+	}
+	var labels map[string]string
+	{
+		l := view.Setting().Metadata()["labels"]
+		if l != nil {
+			labels = l.(map[string]string)
+		}
+	}
 	return bigquery.TableMetadata{
 		Name:        view.Name(),
 		ViewQuery:   view.Query(),
-		Description: view.Setting().Metadata()["description"].(string),
-		Labels:      view.Setting().Metadata()["labels"].(map[string]string),
+		Description: description,
+		Labels:      labels,
 	}, nil
 }
 
