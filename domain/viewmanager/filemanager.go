@@ -7,6 +7,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -19,6 +20,15 @@ type fileView struct {
 	dataSet string
 	name    string
 	query   string
+	setting fileSetting
+}
+
+type fileSetting struct {
+	Metadata_ map[string]interface{} `yaml:"metadata"`
+}
+
+func (fs fileSetting) Metadata() map[string]interface{} {
+	return fs.Metadata_
 }
 
 func (f fileView) DataSet() string {
@@ -31,6 +41,10 @@ func (f fileView) Name() string {
 
 func (f fileView) Query() string {
 	return f.query
+}
+
+func (f fileView) Setting() Setting {
+	return f.setting
 }
 
 func NewFileManager(dir string) FileManager {
@@ -68,15 +82,27 @@ func (f FileManager) List(ctx context.Context) ([]View, error) {
 			}
 
 			name := strings.TrimSuffix(file.Name(), ".sql")
-			bquery, err := ioutil.ReadFile(f.Path(fileView{dataSet: dataSet, name: name}))
+			inCompleteFileView := fileView{dataSet: dataSet, name: name}
+
+			bquery, err := ioutil.ReadFile(f.Path(inCompleteFileView))
 			if err != nil {
 				return nil, errors.WithStack(err)
+			}
+
+			sSetting, err := ioutil.ReadFile(f.SettingPath(inCompleteFileView))
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+			var setting fileSetting
+			if err := yaml.Unmarshal(sSetting, &setting); err != nil {
+				return nil, errors.WithMessagef(err, "Failed to parse %s", f.SettingPath(inCompleteFileView))
 			}
 
 			v := fileView{
 				dataSet: dataSet,
 				name:    name,
 				query:   string(bquery),
+				setting: setting,
 			}
 			views = append(views, v)
 		}
@@ -84,6 +110,7 @@ func (f FileManager) List(ctx context.Context) ([]View, error) {
 
 	return views, nil
 }
+
 func (f FileManager) Get(ctx context.Context, dataset string, name string) (View, error) {
 	if _, err := os.Stat(f.Path(fileView{dataSet: dataset, name: name})); err != nil {
 		if os.IsNotExist(err) {
@@ -114,22 +141,39 @@ func (f FileManager) Create(ctx context.Context, view View) (View, error) {
 		}
 	}
 
-	file, err := os.Create(f.Path(view))
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	defer file.Close()
+	// Create sql file.
+	{
+		file, err := os.Create(f.Path(view))
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		defer file.Close()
 
-	_, err = file.WriteString((view.Query()))
-	if err != nil {
-		return nil, errors.WithStack(err)
+		_, err = file.WriteString((view.Query()))
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
 	}
 
-	return fileView{
-		dataSet: view.DataSet(),
-		name:    view.Name(),
-		query:   view.Query(),
-	}, nil
+	// Create yml file
+	{
+		file, err := os.Create(f.SettingPath(view))
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		fv := f.convertToFileView(view)
+		out, err := yaml.Marshal(fv.setting)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		_, err = file.Write(out)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+	}
+
+	return f.convertToFileView(view), nil
 }
 
 func (f FileManager) Update(ctx context.Context, view View) (View, error) {
@@ -139,23 +183,47 @@ func (f FileManager) Update(ctx context.Context, view View) (View, error) {
 		}
 		return nil, err
 	}
-	file, err := os.OpenFile(f.Path(view), os.O_WRONLY, 0222)
-	//
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	defer file.Close()
+	{
+		file, err := os.OpenFile(f.Path(view), os.O_WRONLY, 0222)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		defer file.Close()
 
-	_, err = file.WriteString(view.Query())
-	if err != nil {
-		return nil, errors.WithStack(err)
+		_, err = file.WriteString(view.Query())
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+	}
+	{
+		file, err := os.OpenFile(f.SettingPath(view), os.O_WRONLY, 0222)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		defer file.Close()
+
+		fv := f.convertToFileView(view)
+		out, err := yaml.Marshal(fv.setting)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		if _, err := file.Write(out); err != nil {
+			return nil, errors.WithStack(err)
+		}
 	}
 
 	return f.Get(ctx, view.DataSet(), view.Name())
 }
 func (f FileManager) Delete(ctx context.Context, view View) error {
 	err := os.Remove(f.Path(view))
-	return errors.WithStack(err)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	if err := os.Remove(f.SettingPath(view)); err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
 }
 
 func (f FileManager) Path(view View) string {
@@ -164,4 +232,19 @@ func (f FileManager) Path(view View) string {
 
 func (f FileManager) DatasetPath(view View) string {
 	return path.Join(f.dir, view.DataSet())
+}
+
+func (f FileManager) SettingPath(view View) string {
+	return path.Join(f.dir, view.DataSet(), view.Name()+"yml")
+}
+
+func (f FileManager) convertToFileView(view View) fileView {
+	return fileView{
+		dataSet: view.DataSet(),
+		name:    view.Name(),
+		query:   view.Query(),
+		setting: fileSetting{
+			Metadata_: view.Setting().Metadata(),
+		},
+	}
 }

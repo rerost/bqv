@@ -131,6 +131,10 @@ func (d diffView) Query() string {
 	return d.query
 }
 
+func (d diffView) Setting() viewmanager.Setting {
+	panic("NOT IMPLEMENTED") // TODO(@rerost)
+}
+
 func diff(source View, destination View) (diffView, error) {
 	if source == nil && destination == nil {
 		return diffView{}, nil
