@@ -49,6 +49,9 @@ jobs:
         fi
 
     - name: Test
+      env: # Or as an environment variable
+        GOOGLE_APPLICATION_PROJECT_ID: ${{ secrets.GOOGLE_APPLICATION_PROJECT_ID }}
+        GOOGLE_APPLICATION_CREDENTIALS_KEY: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_KEY }}
       run: |
         export PROJECT_ROOT=$(pwd)
         make ci-test

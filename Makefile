@@ -11,7 +11,7 @@ mockgen:
 
 PHONY: ci-test
 ci-test:
-	echo $(GOOGLE_APPLICATION_CREDENTIALS_KEY) > /tmp/key.json
+	echo ${GOOGLE_APPLICATION_CREDENTIALS_KEY} > /tmp/key.json
 	export GOOGLE_APPLICATION_CREDENTIALS=/tmp/key.json
 	make test
 
