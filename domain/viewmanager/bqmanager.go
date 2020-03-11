@@ -13,6 +13,10 @@ import (
 	"google.golang.org/api/iterator"
 )
 
+var (
+	datasetPrefixForTest string
+)
+
 type BQManager struct {
 	bqClient BQClient
 }
@@ -126,7 +130,8 @@ func (b BQManager) Get(ctx context.Context, dataset string, name string) (View, 
 	}, nil
 }
 func (b BQManager) Create(ctx context.Context, view View) (View, error) {
-	ds := b.bqClient.Dataset(view.DataSet())
+	fmt.Println(datasetPrefixForTest)
+	ds := b.bqClient.Dataset(datasetPrefixForTest + view.DataSet())
 	_, err := ds.Metadata(ctx)
 	if err != nil {
 		zap.L().Debug("Failed to create dataset", zap.String("err", err.Error()))
@@ -154,10 +159,10 @@ func (b BQManager) Create(ctx context.Context, view View) (View, error) {
 		return nil, errors.WithStack(err)
 	}
 
-	return b.Get(ctx, view.DataSet(), view.Name())
+	return b.Get(ctx, datasetPrefixForTest+view.DataSet(), view.Name())
 }
 func (b BQManager) Update(ctx context.Context, view View) (View, error) {
-	ds := b.bqClient.Dataset(view.DataSet())
+	ds := b.bqClient.Dataset(datasetPrefixForTest + view.DataSet())
 	t := ds.Table(view.Name())
 	tmd, err := b.converToTmd(view)
 	if err != nil {
@@ -176,7 +181,7 @@ func (b BQManager) Update(ctx context.Context, view View) (View, error) {
 		return nil, errors.WithStack(err)
 	}
 
-	view, err = b.Get(ctx, view.DataSet(), view.Name())
+	view, err = b.Get(ctx, datasetPrefixForTest+view.DataSet(), view.Name())
 	if err != nil {
 		zap.L().Debug("Failed to get view", zap.String("err", err.Error()))
 		if err == NotFoundError {
@@ -189,7 +194,7 @@ func (b BQManager) Update(ctx context.Context, view View) (View, error) {
 	return view, nil
 }
 func (b BQManager) Delete(ctx context.Context, view View) error {
-	ds := b.bqClient.Dataset(view.DataSet())
+	ds := b.bqClient.Dataset(datasetPrefixForTest + view.DataSet())
 	t := ds.Table(view.Name())
 	return errors.WithStack(t.Delete(ctx))
 }
