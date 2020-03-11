@@ -56,3 +56,7 @@ jobs:
       run: |
         export PROJECT_ROOT=$(pwd)
         make ci-test
+
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v1
+
