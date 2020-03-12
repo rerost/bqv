@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/rerost/bqv/cmd"
 	"github.com/rerost/bqv/domain/viewmanager"
+	"google.golang.org/api/iterator"
 )
 
 type dummyView struct {
@@ -39,10 +41,43 @@ func (dvs dummyViewSetting) Metadata() map[string]interface{} {
 	return map[string]interface{}{}
 }
 
-func TestCreate(t *testing.T) {
-	viewmanager.SetTest()
+func TestMain(m *testing.M) {
+	bqDatasetPrefix := viewmanager.SetTest()
+
 	ctx := context.Background()
-	fmt.Println(os.Getenv("GOOGLE_APPLICATION_PROJECT_ID"))
+	bqClient, err := cmd.NewBQClient(ctx, cmd.Config{
+		ProjectID: os.Getenv("GOOGLE_APPLICATION_PROJECT_ID"),
+	})
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	exitCode := m.Run()
+
+	for it := bqClient.Datasets(ctx); ; {
+		ds, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		if !strings.HasPrefix(ds.DatasetID(), bqDatasetPrefix) {
+			continue
+		}
+		ds.Delete(ctx)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	}
+	os.Exit(exitCode)
+}
+
+func TestCreate(t *testing.T) {
+	ctx := context.Background()
 	bqClient, err := cmd.NewBQClient(ctx, cmd.Config{
 		ProjectID: os.Getenv("GOOGLE_APPLICATION_PROJECT_ID"),
 	})
