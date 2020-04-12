@@ -10,6 +10,7 @@ import (
 	"context"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
 	"github.com/pkg/errors"
+	"github.com/rerost/bqv/domain/query"
 	"github.com/rerost/bqv/domain/viewmanager"
 	"github.com/rerost/bqv/domain/viewservice"
 	"github.com/spf13/cobra"
@@ -25,18 +26,32 @@ func InitializeCmd(ctx context.Context, cfg Config) (*cobra.Command, error) {
 	}
 	bqManager := viewmanager.NewBQManager(bqClient)
 	fileManager := NewFileManager(cfg)
-	command := NewCmdRoot(ctx, viewService, bqManager, fileManager)
+	client, err := NewRawBQClient(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	queryService := query.NewQueryService(client)
+	command := NewCmdRoot(ctx, viewService, bqManager, fileManager, queryService)
 	return command, nil
 }
 
 // wire.go:
 
-func NewBQClient(ctx context.Context, cfg Config) (viewmanager.BQClient, error) {
+func NewRawBQClient(ctx context.Context, cfg Config) (bqiface.Client, error) {
 	c, err := bigquery.NewClient(ctx, cfg.ProjectID)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	return viewmanager.BQClient(bqiface.AdaptClient(c)), nil
+
+	return bqiface.AdaptClient(c), nil
+}
+
+func NewBQClient(ctx context.Context, cfg Config) (viewmanager.BQClient, error) {
+	c, err := NewRawBQClient(ctx, cfg)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return viewmanager.BQClient(c), nil
 }
 
 func NewFileManager(cfg Config) viewmanager.FileManager {
