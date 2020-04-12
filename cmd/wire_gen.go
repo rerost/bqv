@@ -20,16 +20,16 @@ import (
 
 func InitializeCmd(ctx context.Context, cfg Config) (*cobra.Command, error) {
 	viewService := viewservice.NewService()
-	client, err := NewRawBQClient(ctx, cfg)
-	if err != nil {
-		return nil, err
-	}
-	bqClient, err := NewBQClient(client)
+	bqClient, err := NewBQClient(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
 	bqManager := viewmanager.NewBQManager(bqClient)
 	fileManager := NewFileManager(cfg)
+	client, err := NewRawBQClient(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
 	queryService := query.NewQueryService(client)
 	command := NewCmdRoot(ctx, viewService, bqManager, fileManager, queryService)
 	return command, nil
@@ -46,7 +46,11 @@ func NewRawBQClient(ctx context.Context, cfg Config) (bqiface.Client, error) {
 	return bqiface.AdaptClient(c), nil
 }
 
-func NewBQClient(c bqiface.Client) (viewmanager.BQClient, error) {
+func NewBQClient(ctx context.Context, cfg Config) (viewmanager.BQClient, error) {
+	c, err := NewRawBQClient(ctx, cfg)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 	return viewmanager.BQClient(c), nil
 }
 

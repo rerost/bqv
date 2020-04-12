@@ -24,7 +24,11 @@ func NewRawBQClient(ctx context.Context, cfg Config) (bqiface.Client, error) {
 	return bqiface.AdaptClient(c), nil
 }
 
-func NewBQClient(c bqiface.Client) (viewmanager.BQClient, error) {
+func NewBQClient(ctx context.Context, cfg Config) (viewmanager.BQClient, error) {
+	c, err := NewRawBQClient(ctx, cfg)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 	return viewmanager.BQClient(c), nil
 }
 
