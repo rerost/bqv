@@ -7,6 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"github.com/rerost/bqv/domain/viewmanager"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
 
@@ -88,14 +89,16 @@ func (s viewServiceImpl) Copy(ctx context.Context, src ViewReader, dst ViewWrite
 		return errors.WithStack(err)
 	}
 
+	var errs []error
 	for _, srcView := range srcList {
 		err := s.copy(ctx, srcView, dst)
 		if err != nil {
-			return errors.WithStack(err)
+			zap.L().Debug("Failed to copy view", zap.String("Dataset", srcView.DataSet()), zap.String("Table", srcView.Name()))
+			errors = append(errs, errors.WithStack(err))
 		}
 	}
 
-	return nil
+	return errors.WithStack(multierr.Combine(errs...))
 }
 
 func (s viewServiceImpl) DeleteOld(ctx context.Context, src ViewReader, dst ViewReadWriter) error {
