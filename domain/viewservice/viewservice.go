@@ -66,21 +66,23 @@ func (s viewServiceImpl) Diff(ctx context.Context, src ViewReader, dst ViewReade
 }
 
 func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst ViewWriter) error {
-	zap.L().Debug("Src", zap.String("dataset", srcView.DataSet()), zap.String("table", srcView.Name()))
-	_, err := dst.Update(ctx, srcView)
+	zap.L().Debug("Src", zap.String("dataset", item.DataSet()), zap.String("table", item.Name()))
+	_, err := dst.Update(ctx, item)
 	if err != nil {
 		zap.L().Debug("Err", zap.String("err", err.Error()))
 	}
 	if err == viewmanager.NotFoundError {
-		zap.L().Debug("Creating view", zap.String("Dataset", srcView.DataSet()), zap.String("Table", srcView.Name()))
-		_, err := dst.Create(ctx, srcView)
+		zap.L().Debug("Creating view", zap.String("Dataset", item.DataSet()), zap.String("Table", item.Name()))
+		_, err := dst.Create(ctx, item)
 		if err != nil {
-			zap.L().Debug("Failed to create view", zap.String("Dataset", srcView.DataSet()), zap.String("Table", srcView.Name()))
+			zap.L().Debug("Failed to create view", zap.String("Dataset", item.DataSet()), zap.String("Table", item.Name()))
 			return errors.WithStack(err)
 		}
 	} else if err != nil {
 		return errors.WithStack(err)
 	}
+
+	return nil
 }
 
 func (s viewServiceImpl) Copy(ctx context.Context, src ViewReader, dst ViewWriter) error {
@@ -94,7 +96,7 @@ func (s viewServiceImpl) Copy(ctx context.Context, src ViewReader, dst ViewWrite
 		err := s.copy(ctx, srcView, dst)
 		if err != nil {
 			zap.L().Debug("Failed to copy view", zap.String("Dataset", srcView.DataSet()), zap.String("Table", srcView.Name()))
-			errors = append(errs, errors.WithStack(err))
+			errs = append(errs, errors.WithStack(err))
 		}
 	}
 
