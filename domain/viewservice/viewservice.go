@@ -64,6 +64,24 @@ func (s viewServiceImpl) Diff(ctx context.Context, src ViewReader, dst ViewReade
 	return diffViews, nil
 }
 
+func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst ViewWriter) error {
+	zap.L().Debug("Src", zap.String("dataset", srcView.DataSet()), zap.String("table", srcView.Name()))
+	_, err := dst.Update(ctx, srcView)
+	if err != nil {
+		zap.L().Debug("Err", zap.String("err", err.Error()))
+	}
+	if err == viewmanager.NotFoundError {
+		zap.L().Debug("Creating view", zap.String("Dataset", srcView.DataSet()), zap.String("Table", srcView.Name()))
+		_, err := dst.Create(ctx, srcView)
+		if err != nil {
+			zap.L().Debug("Failed to create view", zap.String("Dataset", srcView.DataSet()), zap.String("Table", srcView.Name()))
+			return errors.WithStack(err)
+		}
+	} else if err != nil {
+		return errors.WithStack(err)
+	}
+}
+
 func (s viewServiceImpl) Copy(ctx context.Context, src ViewReader, dst ViewWriter) error {
 	srcList, err := src.List(ctx)
 	if err != nil {
@@ -71,19 +89,8 @@ func (s viewServiceImpl) Copy(ctx context.Context, src ViewReader, dst ViewWrite
 	}
 
 	for _, srcView := range srcList {
-		zap.L().Debug("Src", zap.String("dataset", srcView.DataSet()), zap.String("table", srcView.Name()))
-		_, err := dst.Update(ctx, srcView)
+		err := s.copy(ctx, srcView, dst)
 		if err != nil {
-			zap.L().Debug("Err", zap.String("err", err.Error()))
-		}
-		if err == viewmanager.NotFoundError {
-			zap.L().Debug("Creating view", zap.String("Dataset", srcView.DataSet()), zap.String("Table", srcView.Name()))
-			_, err := dst.Create(ctx, srcView)
-			if err != nil {
-				zap.L().Debug("Failed to create view", zap.String("Dataset", srcView.DataSet()), zap.String("Table", srcView.Name()))
-				return errors.WithStack(err)
-			}
-		} else if err != nil {
 			return errors.WithStack(err)
 		}
 	}
