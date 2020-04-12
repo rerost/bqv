@@ -5,6 +5,7 @@ import (
 
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -28,8 +29,10 @@ func (q *queryServiceImpl) Exec(ctx context.Context, query string) (err error) {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	zap.L().Debug("Exec query", zap.String("job_id", j.ID()), zap.String("query", query))
 
 	status, err := j.Wait(ctx)
+	zap.L().Debug("End query", zap.String("job_id", j.ID()))
 	if err != nil {
 		return errors.WithStack(err)
 	}
