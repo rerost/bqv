@@ -14,6 +14,7 @@ require (
 	github.com/spf13/viper v1.4.0
 	go.opencensus.io v0.22.2 // indirect
 	go.uber.org/zap v1.13.0
+	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	google.golang.org/api v0.14.0
 	gopkg.in/yaml.v2 v2.2.2
 )
