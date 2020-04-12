@@ -40,7 +40,11 @@ func NewCmd(
 					})
 				}
 
-				return errors.WithStack(eg.Wait())
+				if err := eg.Wait(); err != nil {
+					return errors.WithStack(err)
+				}
+
+				return errors.WithStack(queryService.BulkExec(ctx, queries))
 			},
 			Args: cobra.MinimumNArgs(1),
 		},
