@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/rerost/bqv/domain/template/resolver"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -54,16 +56,18 @@ func (t *templateServiceImpl) run(ctx context.Context, viewDirPath string, templ
 	var dataset string
 	{
 		paths := strings.Split(templateFilePath, "/")
-		pathLength := len(templateFilePath)
+		pathLength := len(paths)
 		if pathLength < 2 {
 			return errors.New("Not valid template. template path must be `foo/<dataset_name>/<template_name>.sql`")
 		}
 
+		zap.L().Debug("pick dataset", zap.Strings("paths", paths), zap.Int("pathLength", pathLength))
 		dataset = paths[pathLength-2]
+		zap.L().Debug("pick dataset", zap.String("dataset", dataset))
 	}
 
 	for _, query := range queries {
-		err := t.save(ctx, templateFilePath, dataset, query)
+		err := t.save(ctx, viewDirPath, dataset, query)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -73,6 +77,22 @@ func (t *templateServiceImpl) run(ctx context.Context, viewDirPath string, templ
 }
 
 func (t *templateServiceImpl) save(ctx context.Context, viewDirPath string, dataset string, query resolver.Query) error {
-	err := ioutil.WriteFile(fmt.Sprintf("%s/%s/%s", viewDirPath, dataset, query.Name), []byte(query.Query), 0644)
+	outDir := fmt.Sprintf("%s/%s", viewDirPath, dataset)
+
+	if _, err := os.Stat(outDir); err != nil {
+		if os.IsNotExist(err) {
+			err := os.Mkdir(outDir, 0777)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+		} else {
+			return errors.WithStack(err)
+		}
+	}
+
+	filename := fmt.Sprintf("%s/%s.sql", outDir, query.Name)
+
+	zap.L().Debug("Output", zap.String("filename", filename))
+	err := ioutil.WriteFile(filename, []byte(query.Query), 0644)
 	return errors.WithStack(err)
 }
