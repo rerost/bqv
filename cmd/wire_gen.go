@@ -11,6 +11,8 @@ import (
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
 	"github.com/pkg/errors"
 	"github.com/rerost/bqv/domain/query"
+	"github.com/rerost/bqv/domain/template"
+	"github.com/rerost/bqv/domain/template/resolver"
 	"github.com/rerost/bqv/domain/viewmanager"
 	"github.com/rerost/bqv/domain/viewservice"
 	"github.com/spf13/cobra"
@@ -31,7 +33,9 @@ func InitializeCmd(ctx context.Context, cfg Config) (*cobra.Command, error) {
 		return nil, err
 	}
 	queryService := query.NewQueryService(client)
-	command := NewCmdRoot(ctx, viewService, bqManager, fileManager, queryService)
+	queryResolver := resolver.NewQueryResolver(client)
+	templateService := template.NewTemplateService(queryResolver)
+	command := NewCmdRoot(ctx, viewService, bqManager, fileManager, queryService, templateService)
 	return command, nil
 }
 
