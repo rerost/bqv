@@ -65,6 +65,28 @@ func (s viewServiceImpl) Diff(ctx context.Context, src ViewReader, dst ViewReade
 	return diffViews, nil
 }
 
+func doPeriodically(t time.Time, item viewmanager.View, dst ViewWriter, ctx context.Context) {
+	_, err := dst.Update(ctx, item)
+	if err != nil {
+		zap.L().Debug("Err", zap.String("err", err.Error()))
+	}
+}
+
+func periodicLoop_forDay(ctx context.Context, item viewmanager.View, dst ViewWriter) {
+	interval :=  24 * time.Hour
+    ticker := time.NewTicker(interval)
+    defer ticker.Stop()
+    doPeriodically(time.Now(), item, dst, ctx)
+    for {
+        select {
+        case <-ctx.Done():
+            return
+        case t := <-ticker.C:
+            doPeriodically(t, item, dst)
+        }
+    }
+}
+
 func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst ViewWriter) error {
 	zap.L().Debug("Src", zap.String("dataset", item.DataSet()), zap.String("table", item.Name()))
 	_, err := dst.Update(ctx, item)
@@ -72,12 +94,25 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 		zap.L().Debug("Err", zap.String("err", err.Error()))
 	}
 	if err == viewmanager.NotFoundError {
-		zap.L().Debug("Creating view", zap.String("Dataset", item.DataSet()), zap.String("Table", item.Name()))
+		zap.L().Debug("Creating view", zap.String("Dataset", item.DataSet()), zap.String("Table", item.Name())) # item.Nameの中身kakuninn
 		_, err := dst.Create(ctx, item)
 		if err != nil {
 			zap.L().Debug("Failed to create view", zap.String("Dataset", item.DataSet()), zap.String("Table", item.Name()))
 			return errors.WithStack(err)
 		}
+		// item.Name()にTable名が入っている気がする? のでテーブル名を変えるだけで、
+		// 恐らくviewと同じ要領でCreate funcに入れるとテーブルを作ってくれる??
+		ctx_for_table = context.Background()
+		item.Name = ...
+		_, err := dst.Create(ctx_for_table, item)
+		if err != nil {
+			zap.L().Debug("Failed to create view", zap.String("Dataset", item.DataSet()), zap.String("Table", item.Name()))
+			return errors.WithStack(err)
+		}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go periodicLoop_forDay(ctx, item, dst)
+
 	} else if err != nil {
 		return errors.WithStack(err)
 	}
