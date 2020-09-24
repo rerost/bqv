@@ -6,6 +6,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"github.com/rerost/bqv/domain/viewmanager"
+	datatransfer "cloud.google.com/go/bigquery/datatransfer/apiv1"
+	datatransferpb "google.golang.org/genproto/googleapis/cloud/bigquery/datatransfer/v1"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
@@ -37,8 +39,20 @@ type cachedviewtable struct {
 	view View
 }
 
-func (v viewtable) Name() string {
+func (v cachedviewtable) Name() string {
 	return "Cached_" + v.view.Name()
+}
+
+func (v cachedviewtable) DataSet() string {
+	return v.view.DataSet()
+}
+
+func (v cachedviewtable) Query() string {
+	return v.view.Query()
+}
+
+func (v cachedviewtable) Setting() viewmanager.Setting {
+	return v.view.Setting()
 }
 
 func NewService() ViewService {
@@ -92,9 +106,29 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 			zap.L().Debug("Failed to create view", zap.String("Dataset", item.DataSet()), zap.String("Table", item.Name()))
 			return errors.WithStack(err)
 		}
+		// TODO: ビューを作るかどうか
 		cached_view_table := cachedviewtable{item}
-		dst.Create(ctx, cached_view_table)
+		_, c_err := dst.Create(ctx, cached_view_table) 
+		if c_err != nil {
+			zap.L().Debug("Failed to create cached view table", zap.String("Dataset", cached_view_table.DataSet()), zap.String("Table", cached_view_table.Name()))
+			return errors.WithStack(c_err)
+		}
 		// BQ定期ジョブ実行
+		// TODO: ビューを作るかどうか
+		ctx := context.Background()
+		c, err := datatransfer.NewClient(ctx)
+		if err != nil {
+			zap.L().Debug("Err", zap.String("err", err.Error()))
+		}
+
+		req := &datatransferpb.CreateTransferConfigRequest{
+			// TODO: 定期ジョブ内容
+		}
+		resp, err := c.CreateTransferConfig(ctx, req)
+		if err != nil {
+			zap.L().Debug("Err", zap.String("err", err.Error()))
+		}
+		// TODO: resp使った続き
 
 	} else if err != nil {
 		return errors.WithStack(err)
