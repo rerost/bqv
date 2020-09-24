@@ -3,9 +3,6 @@ package viewservice
 import (
 	"context"
 	"fmt"
-	"strings"
-	"time"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"github.com/rerost/bqv/domain/viewmanager"
@@ -29,11 +26,19 @@ type viewServiceImpl struct {
 	destination ViewWriter
 }
 
-type ViewTable struct {
-	dataSet string
-	name    string
-	query   string
-	setting //型指定は子クラスによる場合どうしたら良いかわからない
+type CachedViewTable interface {
+	DataSet() string
+	Name() string
+	Query() string
+	Setting() viewmanager.Setting
+}
+
+type cachedviewtable struct {
+	view View
+}
+
+func (v viewtable) Name() string {
+	return "Cached_" + v.view.Name()
 }
 
 func NewService() ViewService {
@@ -87,15 +92,9 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 			zap.L().Debug("Failed to create view", zap.String("Dataset", item.DataSet()), zap.String("Table", item.Name()))
 			return errors.WithStack(err)
 		}
-		view_table_name := item.Name() + "_table"
-		item_for_table :=  ViewTable {
-			dataSet: item.DataSet(),
-			name:    view_table_name,
-			query:   item.Query(),
-			setting: item.Setting(),
-		}
+		cached_view_table := cachedviewtable{item}
+		dst.Create(ctx, cached_view_table)
 		// BQ定期ジョブ実行
-		
 
 	} else if err != nil {
 		return errors.WithStack(err)
