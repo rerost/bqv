@@ -3,6 +3,8 @@ package viewservice
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
@@ -25,6 +27,13 @@ type ViewService interface {
 type viewServiceImpl struct {
 	source      ViewReader
 	destination ViewWriter
+}
+
+type ViewTable struct {
+	dataSet string
+	name    string
+	query   string
+	setting //型指定は子クラスによる場合どうしたら良いかわからない
 }
 
 func NewService() ViewService {
@@ -78,6 +87,16 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 			zap.L().Debug("Failed to create view", zap.String("Dataset", item.DataSet()), zap.String("Table", item.Name()))
 			return errors.WithStack(err)
 		}
+		view_table_name := item.Name() + "_table"
+		item_for_table :=  ViewTable {
+			dataSet: item.DataSet(),
+			name:    view_table_name,
+			query:   item.Query(),
+			setting: item.Setting(),
+		}
+		// BQ定期ジョブ実行
+		
+
 	} else if err != nil {
 		return errors.WithStack(err)
 	}
