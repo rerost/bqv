@@ -3,6 +3,7 @@ package viewservice
 import (
 	"context"
 	"fmt"
+	"os"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"github.com/rerost/bqv/domain/viewmanager"
@@ -114,21 +115,21 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 			return errors.WithStack(c_err)
 		}
 		// BQ定期ジョブ実行
-		// TODO: ビューを作るかどうか
 		ctx := context.Background()
 		c, err := datatransfer.NewClient(ctx)
 		if err != nil {
 			zap.L().Debug("Err", zap.String("err", err.Error()))
 		}
-
 		req := &datatransferpb.CreateTransferConfigRequest{
-			// TODO: 定期ジョブ内容
-		}
+			Parent: datatransfer.ProjectPath(os.Getenv("GOOGLE_APPLICATION_PROJECT_ID")),
+			TransferConfig: &datatransferpb.TransferConfig{
+				// TODO: 中身作る
+			}}
 		resp, err := c.CreateTransferConfig(ctx, req)
-		if err != nil {
+		if c_err != nil {
 			zap.L().Debug("Err", zap.String("err", err.Error()))
 		}
-		// TODO: resp使った続き
+		fmt.Println(resp)
 
 	} else if err != nil {
 		return errors.WithStack(err)
