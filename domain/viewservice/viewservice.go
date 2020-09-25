@@ -113,11 +113,7 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 		// TODO: ビューを作るかどうか
 		// cached_view_table作成
 		cached_view_table := cachedviewtable{item}
-		res_cached_view_table, c_err := dst.Create(ctx, cached_view_table) 
-		if c_err != nil {
-			zap.L().Debug("Failed to create cached view table", zap.String("Dataset", cached_view_table.DataSet()), zap.String("Table", cached_view_table.Name()))
-			return errors.WithStack(c_err)
-		}
+
 		// BQ定期ジョブ実行
 		ctx := context.Background()
 		c, err := datatransfer.NewClient(ctx)
@@ -126,8 +122,8 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 		}
 		// &structpb.Structの書き方が複雑なため、map -> json -> &structpb.Struct
 		m := map[string]interface{}{
-			// TODO: "query"(更新のある部分だけ更新)
-		  }
+			"query": "CREATE OR REPLACE TABLE " + cached_view_table.DataSet() + "." + cached_view_table.Name() + "AS SELECT * FROM " + item.DataSet() + "." + item.Name()}
+
 		j, err := json.Marshal(m)
 		if err != nil {
 			zap.L().Debug("Json Conversion Error", zap.String("err", err.Error()))
@@ -142,7 +138,7 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 			Parent: datatransfer.ProjectPath(os.Getenv("GOOGLE_APPLICATION_PROJECT_ID")),
 			TransferConfig: &datatransferpb.TransferConfig{
 				DisplayName: "Scheduling View Update",
-				DataSourceId: res_cached_view_table.DataSet(),
+				DataSourceId: cached_view_table.DataSet(),
 				Params: struct_params,
 				Schedule: "every 24 hours",}}
 		resp, err := c.CreateTransferConfig(ctx, req)
@@ -226,7 +222,7 @@ func diff(source View, destination View) (diffView, error) {
 	}
 	if source == nil {
 		return diffView{
-			dataSet: destination.DataSet(),
+			dataSet: destination.,
 			name:    destination.Name(),
 			query:   destination.Query(),
 		}, nil
