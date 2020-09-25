@@ -9,6 +9,9 @@ import (
 	"github.com/rerost/bqv/domain/viewmanager"
 	datatransfer "cloud.google.com/go/bigquery/datatransfer/apiv1"
 	datatransferpb "google.golang.org/genproto/googleapis/cloud/bigquery/datatransfer/v1"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/encoding/protojson"
+	"encoding/json"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
@@ -108,8 +111,9 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 			return errors.WithStack(err)
 		}
 		// TODO: ビューを作るかどうか
+		// cached_view_table作成
 		cached_view_table := cachedviewtable{item}
-		_, c_err := dst.Create(ctx, cached_view_table) 
+		res_cached_view_table, c_err := dst.Create(ctx, cached_view_table) 
 		if c_err != nil {
 			zap.L().Debug("Failed to create cached view table", zap.String("Dataset", cached_view_table.DataSet()), zap.String("Table", cached_view_table.Name()))
 			return errors.WithStack(c_err)
@@ -120,11 +124,27 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 		if err != nil {
 			zap.L().Debug("Err", zap.String("err", err.Error()))
 		}
+		// &structpb.Structの書き方が複雑なため、map -> json -> &structpb.Struct
+		m := map[string]interface{}{
+			// TODO: "query"(更新のある部分だけ更新)
+		  }
+		j, err := json.Marshal(m)
+		if err != nil {
+			zap.L().Debug("Json Conversion Error", zap.String("err", err.Error()))
+		}
+		struct_params := &structpb.Struct{}
+		err = protojson.Unmarshal(j, struct_params)
+		if err != nil {
+			zap.L().Debug("structpb.Struct Conversion Error", zap.String("err", err.Error()))
+		}
+
 		req := &datatransferpb.CreateTransferConfigRequest{
 			Parent: datatransfer.ProjectPath(os.Getenv("GOOGLE_APPLICATION_PROJECT_ID")),
 			TransferConfig: &datatransferpb.TransferConfig{
-				// TODO: 中身作る
-			}}
+				DisplayName: "Scheduling View Update",
+				DataSourceId: res_cached_view_table.DataSet(),
+				Params: struct_params,
+				Schedule: "every 24 hours",}}
 		resp, err := c.CreateTransferConfig(ctx, req)
 		if c_err != nil {
 			zap.L().Debug("Err", zap.String("err", err.Error()))
