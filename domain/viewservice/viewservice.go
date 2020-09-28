@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"github.com/rerost/bqv/domain/viewmanager"
@@ -32,12 +33,12 @@ type viewServiceImpl struct {
 	destination ViewWriter
 }
 
-type CachedViewTable interface {
-	DataSet() string
-	Name() string
-	Query() string
-	Setting() viewmanager.Setting
-}
+// type CachedViewTable interface {
+// 	DataSet() string
+// 	Name() string
+// 	Query() string
+// 	Setting() viewmanager.Setting
+// }
 
 type cachedviewtable struct {
 	view View
@@ -110,42 +111,47 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 			zap.L().Debug("Failed to create view", zap.String("Dataset", item.DataSet()), zap.String("Table", item.Name()))
 			return errors.WithStack(err)
 		}
-		// TODO: ビューを作るかどうか
-		// cached_view_table作成
-		cached_view_table := cachedviewtable{item}
+		// TODO: 関数にする？
+		// ymlファイルのview_tableがTrueだったら、cached_view_table作成
+		if item.Setting().Metadata()["view_table"] == true {
+			cached_view_table := cachedviewtable{item}
+			zap.L().Debug("Creating view table")
+			// BQ定期ジョブ実行
+			ctx := context.Background()
+			c, err := datatransfer.NewClient(ctx)
+			if err != nil {
+				zap.L().Debug("Err", zap.String("err", err.Error()))
+			}
+			// &structpb.Structの書き方が複雑なため、map -> json -> &structpb.Struct
+			m := map[string]interface{}{
+				"query": "CREATE OR REPLACE TABLE " + cached_view_table.DataSet() + "." + cached_view_table.Name() + " AS SELECT * FROM " + item.DataSet() + "." + item.Name()}
+			j, err := json.Marshal(m)
+			if err != nil {
+				zap.L().Debug("Json Conversion Error", zap.String("err", err.Error()))
+			}
+			struct_params := &structpb.Struct{}
+			err = protojson.Unmarshal(j, struct_params)
+			if err != nil {
+				zap.L().Debug("structpb.Struct Conversion Error", zap.String("err", err.Error()))
+			}
+	
+			req := &datatransferpb.CreateTransferConfigRequest{
+				Parent: datatransfer.ProjectPath(os.Getenv("GOOGLE_APPLICATION_PROJECT_ID")),
+				TransferConfig: &datatransferpb.TransferConfig{
+					Destination: &datatransferpb.TransferConfig_DestinationDatasetId{
+						DestinationDatasetId: cached_view_table.DataSet()},		
+					DisplayName: "Scheduling View Update",
+					DataSourceId: "scheduled_query",
+					Params: struct_params,
+					Schedule: "every 24 hours",
+					ScheduleOptions: &datatransferpb.ScheduleOptions{ StartTime: timestamppb.Now()}}}
+			resp, err := c.CreateTransferConfig(ctx, req)
+			if err != nil {
+				zap.L().Debug("Err", zap.String("err", err.Error()))
+			}
+			fmt.Println(resp)
+		}
 
-		// BQ定期ジョブ実行
-		ctx := context.Background()
-		c, err := datatransfer.NewClient(ctx)
-		if err != nil {
-			zap.L().Debug("Err", zap.String("err", err.Error()))
-		}
-		// &structpb.Structの書き方が複雑なため、map -> json -> &structpb.Struct
-		m := map[string]interface{}{
-			"query": "CREATE OR REPLACE TABLE " + cached_view_table.DataSet() + "." + cached_view_table.Name() + "AS SELECT * FROM " + item.DataSet() + "." + item.Name()}
-
-		j, err := json.Marshal(m)
-		if err != nil {
-			zap.L().Debug("Json Conversion Error", zap.String("err", err.Error()))
-		}
-		struct_params := &structpb.Struct{}
-		err = protojson.Unmarshal(j, struct_params)
-		if err != nil {
-			zap.L().Debug("structpb.Struct Conversion Error", zap.String("err", err.Error()))
-		}
-
-		req := &datatransferpb.CreateTransferConfigRequest{
-			Parent: datatransfer.ProjectPath(os.Getenv("GOOGLE_APPLICATION_PROJECT_ID")),
-			TransferConfig: &datatransferpb.TransferConfig{
-				DisplayName: "Scheduling View Update",
-				DataSourceId: cached_view_table.DataSet(),
-				Params: struct_params,
-				Schedule: "every 24 hours",}}
-		resp, err := c.CreateTransferConfig(ctx, req)
-		if c_err != nil {
-			zap.L().Debug("Err", zap.String("err", err.Error()))
-		}
-		fmt.Println(resp)
 
 	} else if err != nil {
 		return errors.WithStack(err)
@@ -222,7 +228,7 @@ func diff(source View, destination View) (diffView, error) {
 	}
 	if source == nil {
 		return diffView{
-			dataSet: destination.,
+			dataSet: destination.DataSet(),
 			name:    destination.Name(),
 			query:   destination.Query(),
 		}, nil
