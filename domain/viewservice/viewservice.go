@@ -6,6 +6,7 @@ import (
 	"os"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"github.com/google/go-cmp/cmp"
+	"google.golang.org/api/iterator"
 	"github.com/pkg/errors"
 	"github.com/rerost/bqv/domain/viewmanager"
 	datatransfer "cloud.google.com/go/bigquery/datatransfer/apiv1"
@@ -104,6 +105,7 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 	if err != nil {
 		zap.L().Debug("Err", zap.String("err", err.Error()))
 	}
+	// viewない
 	if err == viewmanager.NotFoundError {
 		zap.L().Debug("Creating view", zap.String("Dataset", item.DataSet()), zap.String("Table", item.Name()))
 		_, err := dst.Create(ctx, item)
@@ -111,54 +113,77 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 			zap.L().Debug("Failed to create view", zap.String("Dataset", item.DataSet()), zap.String("Table", item.Name()))
 			return errors.WithStack(err)
 		}
-		// TODO: 関数にする？
 		// ymlファイルのview_tableがTrueだったら、cached_view_table作成
 		if item.Setting().Metadata()["view_table"] == true {
-			cached_view_table := cachedviewtable{item}
-			zap.L().Debug("Creating view table")
-			// BQ定期ジョブ実行
-			ctx := context.Background()
-			c, err := datatransfer.NewClient(ctx)
-			if err != nil {
-				zap.L().Debug("Err", zap.String("err", err.Error()))
-			}
-			// &structpb.Structの書き方が複雑なため、map -> json -> &structpb.Struct
-			m := map[string]interface{}{
-				"query": "CREATE OR REPLACE TABLE " + cached_view_table.DataSet() + "." + cached_view_table.Name() + " AS SELECT * FROM " + item.DataSet() + "." + item.Name()}
-			j, err := json.Marshal(m)
-			if err != nil {
-				zap.L().Debug("Json Conversion Error", zap.String("err", err.Error()))
-			}
-			struct_params := &structpb.Struct{}
-			err = protojson.Unmarshal(j, struct_params)
-			if err != nil {
-				zap.L().Debug("structpb.Struct Conversion Error", zap.String("err", err.Error()))
-			}
-	
-			req := &datatransferpb.CreateTransferConfigRequest{
-				Parent: datatransfer.ProjectPath(os.Getenv("GOOGLE_APPLICATION_PROJECT_ID")),
-				TransferConfig: &datatransferpb.TransferConfig{
-					Destination: &datatransferpb.TransferConfig_DestinationDatasetId{
-						DestinationDatasetId: cached_view_table.DataSet()},		
-					DisplayName: "Scheduling View Update",
-					DataSourceId: "scheduled_query",
-					Params: struct_params,
-					Schedule: "every 24 hours",
-					ScheduleOptions: &datatransferpb.ScheduleOptions{ StartTime: timestamppb.Now()}}}
-			resp, err := c.CreateTransferConfig(ctx, req)
-			if err != nil {
-				zap.L().Debug("Err", zap.String("err", err.Error()))
-			}
-			fmt.Println(resp)
+			
 		}
-
-
 	} else if err != nil {
 		return errors.WithStack(err)
+	} else {
+	// viewがすでにある場合
+	// TODO: もしview_tableがfalseになっていたら、検索してスケジュールを消す
+	// TODO: そして反対も
+	// cached_view_table := cachedviewtable{item}
+	req := &datatransferpb.ListTransferConfigsRequest{
+		Parent: datatransfer.ProjectPath(os.Getenv("GOOGLE_APPLICATION_PROJECT_ID")),
+		// DataSourceIds: []string{cached_view_table.DataSet() + "." + cached_view_table.Name()},
+	  }
+	c, err := datatransfer.NewClient(ctx)
+	if err != nil {
+		zap.L().Debug("Err", zap.String("err", err.Error()))
 	}
-
+	defer c.Close()
+	it :=  c.ListTransferConfigs(ctx, req)
+	fmt.Println(it)
+	// itがそのまま長さを返してくれることはなさそう？
+	ds, it_err := it.Next()
+	fmt.Println("DS",ds)
+    if it_err == iterator.Done {
+		fmt.Println("なし")
+	} }
 	return nil
 }
+
+func CreateCachedTable(ctx context.Context, item viewmanager.View) error {
+	cached_view_table := cachedviewtable{item}
+	zap.L().Debug("Creating view table")
+	// BQ定期ジョブ実行
+	c, err := datatransfer.NewClient(ctx)
+	if err != nil {
+		zap.L().Debug("Err", zap.String("err", err.Error()))
+	}
+	// &structpb.Structの書き方が複雑なため、map -> json -> &structpb.Struct
+	m := map[string]interface{}{
+		"query": "CREATE OR REPLACE TABLE " + cached_view_table.DataSet() + "." + cached_view_table.Name() + " AS SELECT * FROM " + item.DataSet() + "." + item.Name()}
+	j, err := json.Marshal(m)
+	if err != nil {
+		zap.L().Debug("Json Conversion Error", zap.String("err", err.Error()))
+	}
+	struct_params := &structpb.Struct{}
+	err = protojson.Unmarshal(j, struct_params)
+	if err != nil {
+		zap.L().Debug("structpb.Struct Conversion Error", zap.String("err", err.Error()))
+	}
+
+	req := &datatransferpb.CreateTransferConfigRequest{
+		Parent: datatransfer.ProjectPath(os.Getenv("GOOGLE_APPLICATION_PROJECT_ID")),
+		TransferConfig: &datatransferpb.TransferConfig{
+			Destination: &datatransferpb.TransferConfig_DestinationDatasetId{
+				DestinationDatasetId: cached_view_table.DataSet()},		
+			DisplayName: cached_view_table.DataSet() + "." + cached_view_table.Name(),
+			DataSourceId: "scheduled_query",
+			Params: struct_params,
+			Schedule: "every 15 mins",
+			ScheduleOptions: &datatransferpb.ScheduleOptions{ StartTime: timestamppb.Now()}}}
+	fmt.Println(req)
+	resp, err := c.CreateTransferConfig(ctx, req)
+	if err != nil {
+		zap.L().Debug("Err", zap.String("err", err.Error()))
+	}
+	fmt.Println(resp)
+	return nil
+}
+
 
 func (s viewServiceImpl) Copy(ctx context.Context, src ViewReader, dst ViewWriter) error {
 	srcList, err := src.List(ctx)
