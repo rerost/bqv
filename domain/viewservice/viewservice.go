@@ -137,7 +137,6 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 		
 		for {
 			resp, err := it.Next()
-			// 回りきった
 			if err == iterator.Done {
 				break
 			}
@@ -149,7 +148,13 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 				if item.Setting().Metadata()["view_table"] == true {
 					return nil
 				}
-				// TODO: スケジューリング消す
+				// TODO: テーブル消す
+				req := &datatransferpb.DeleteTransferConfigRequest{
+					Name: resp.GetName()}
+				err = c.DeleteTransferConfig(ctx, req)
+				if err != nil {
+					zap.L().Debug("Delete Scheduling query err", zap.String("err", err.Error()))
+				}
 			}
 		}
 		if item.Setting().Metadata()["view_table"] == true {
