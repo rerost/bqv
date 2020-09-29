@@ -115,32 +115,47 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 		}
 		// ymlファイルのview_tableがTrueだったら、cached_view_table作成
 		if item.Setting().Metadata()["view_table"] == true {
-			
+			CreateCachedTable(ctx, item)
 		}
 	} else if err != nil {
 		return errors.WithStack(err)
 	} else {
-	// viewがすでにある場合
-	// TODO: もしview_tableがfalseになっていたら、検索してスケジュールを消す
-	// TODO: そして反対も
-	// cached_view_table := cachedviewtable{item}
-	req := &datatransferpb.ListTransferConfigsRequest{
-		Parent: datatransfer.ProjectPath(os.Getenv("GOOGLE_APPLICATION_PROJECT_ID")),
-		// DataSourceIds: []string{cached_view_table.DataSet() + "." + cached_view_table.Name()},
-	  }
-	c, err := datatransfer.NewClient(ctx)
-	if err != nil {
-		zap.L().Debug("Err", zap.String("err", err.Error()))
-	}
-	defer c.Close()
-	it :=  c.ListTransferConfigs(ctx, req)
-	fmt.Println(it)
-	// itがそのまま長さを返してくれることはなさそう？
-	ds, it_err := it.Next()
-	fmt.Println("DS",ds)
-    if it_err == iterator.Done {
-		fmt.Println("なし")
-	} }
+		// viewがすでにある場合
+		// TODO: もしview_tableがfalseになっていたら、検索してスケジュールを消す
+		// TODO: そして反対も
+		// cached_view_table := cachedviewtable{item}
+		req := &datatransferpb.ListTransferConfigsRequest{
+			Parent: datatransfer.ProjectPath(os.Getenv("GOOGLE_APPLICATION_PROJECT_ID")),
+			// DataSourceIds: []string{cached_view_table.DataSet() + "." + cached_view_table.Name()},
+		}
+		c, err := datatransfer.NewClient(ctx)
+		if err != nil {
+			zap.L().Debug("Err", zap.String("err", err.Error()))
+		}
+		defer c.Close()
+		it :=  c.ListTransferConfigs(ctx, req)
+		
+		for {
+			resp, err := it.Next()
+			// 回りきった
+			if err == iterator.Done {
+				break
+			}
+			// 単なるエラー
+			if err != nil {
+				zap.L().Debug("Err", zap.String("err", err.Error()))
+			}
+			if resp.GetDisplayName() == item.DataSet() + ".Cached_" + item.Name() {
+				if item.Setting().Metadata()["view_table"] == true {
+					return nil
+				}
+				// TODO: スケジューリング消す
+			}
+		}
+		if item.Setting().Metadata()["view_table"] == true {
+			CreateCachedTable(ctx, item)
+		}
+	} 
 	return nil
 }
 
@@ -149,6 +164,7 @@ func CreateCachedTable(ctx context.Context, item viewmanager.View) error {
 	zap.L().Debug("Creating view table")
 	// BQ定期ジョブ実行
 	c, err := datatransfer.NewClient(ctx)
+	defer c.Close()
 	if err != nil {
 		zap.L().Debug("Err", zap.String("err", err.Error()))
 	}
@@ -180,7 +196,7 @@ func CreateCachedTable(ctx context.Context, item viewmanager.View) error {
 	if err != nil {
 		zap.L().Debug("Err", zap.String("err", err.Error()))
 	}
-	fmt.Println(resp)
+	fmt.Println("Cached Table content: ",resp)
 	return nil
 }
 
