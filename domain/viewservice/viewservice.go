@@ -148,12 +148,17 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 				if item.Setting().Metadata()["view_table"] == true {
 					return nil
 				}
-				// TODO: テーブル消す
+				zap.L().Debug("Deleting scheduling query and cached table")
 				req := &datatransferpb.DeleteTransferConfigRequest{
 					Name: resp.GetName()}
 				err = c.DeleteTransferConfig(ctx, req)
 				if err != nil {
 					zap.L().Debug("Delete Scheduling query err", zap.String("err", err.Error()))
+				}
+				cached_view_table := cachedviewtable{item}
+				err = dst.Delete(ctx, cached_view_table)
+				if err != nil {
+					zap.L().Debug("Delete Cached Table err", zap.String("err", err.Error()))
 				}
 			}
 		}
