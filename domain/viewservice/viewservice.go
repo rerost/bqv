@@ -108,17 +108,23 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 		}
 		// ymlファイルのview_tableがTrueだったら、cachedViewTable作成
 		if item.Setting().Metadata()["view_table"] == true {
-			s.CreateCachedTable(ctx, item)
+			err = s.cachedviewtable(ctx, item)
+			if err != nil {
+				return errors.WithStack(err)
+			}
 		}
 	} else if err != nil {
 		return errors.WithStack(err)
 	} else {
 		// viewがすでにある場合
-		s.ApplyCachedView(ctx, item, dst, cached_map)
+		err = s.applycachedview(ctx, item, dst, cached_map)
+		if err != nil {
+			return errors.WithStack(err)
+		}
 	}
 	return nil
 }
-func (s viewServiceImpl) ApplyCachedView(ctx context.Context, item viewmanager.View, dst ViewWriter, cached_map map[string]string) error {
+func (s viewServiceImpl) applycachedview(ctx context.Context, item viewmanager.View, dst ViewWriter, cached_map map[string]string) error {
 	// スケジューリングクエリの一覧を検索し、item.Setting().Metadata()["view_table"]によっては
 	// テーブルを削除したり、スケジューリングクエリを削除する
 	cachedViewTable := cached_viewtable{item}
@@ -127,7 +133,7 @@ func (s viewServiceImpl) ApplyCachedView(ctx context.Context, item viewmanager.V
 	if ok == false {
 		zap.L().Debug("View already exists, but no scheduling query", zap.String("Table", cachedViewTable.Name()))
 		if item.Setting().Metadata()["view_table"] == true {
-			s.CreateCachedTable(ctx, item)
+			s.cachedviewtable(ctx, item)
 		}
 	} else {
 		if item.Setting().Metadata()["view_table"] == false {
@@ -150,7 +156,7 @@ func (s viewServiceImpl) ApplyCachedView(ctx context.Context, item viewmanager.V
 	}
 	return nil
 }
-func (s viewServiceImpl) CreateCachedTable(ctx context.Context, item viewmanager.View) error {
+func (s viewServiceImpl) cachedviewtable(ctx context.Context, item viewmanager.View) error {
 	cachedViewTable := cached_viewtable{item}
 	zap.L().Debug("creating view table",  zap.String("View Table", cachedViewTable.Name()),  zap.String("Dataset", cachedViewTable.DataSet()))
 	// BQ定期ジョブ実行
