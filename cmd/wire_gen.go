@@ -9,6 +9,7 @@ import (
 	"cloud.google.com/go/bigquery"
 	"context"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
+	datatransfer "cloud.google.com/go/bigquery/datatransfer/apiv1"
 	"github.com/pkg/errors"
 	"github.com/rerost/bqv/domain/query"
 	"github.com/rerost/bqv/domain/template"
@@ -21,7 +22,11 @@ import (
 // Injectors from wire.go:
 
 func InitializeCmd(ctx context.Context, cfg Config) (*cobra.Command, error) {
-	viewService := viewservice.NewService()
+	datatransferclient, err := datatransfer.NewClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	viewService := viewservice.NewService(*datatransferclient)
 	bqClient, err := NewBQClient(ctx, cfg)
 	if err != nil {
 		return nil, err
