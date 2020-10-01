@@ -28,7 +28,7 @@ type ViewService interface {
 	Copy(ctx context.Context, src ViewReader, dst ViewWriter) error
 }
 
-type viewServiceImpl struct {
+type ViewServiceImpl struct {
 	source      ViewReader
 	destination ViewWriter
 	datatransferClient DataTransferClient
@@ -55,14 +55,14 @@ func (v cachedViewTable) Setting() viewmanager.Setting {
 }
 
 func NewService(datatransferClient DataTransferClient) ViewService {
-	return viewServiceImpl{datatransferClient: datatransferClient}
+	return ViewServiceImpl{datatransferClient: datatransferClient}
 }
 
-func (s viewServiceImpl) List(ctx context.Context, src ViewReader) ([]View, error) {
+func (s ViewServiceImpl) List(ctx context.Context, src ViewReader) ([]View, error) {
 	return src.List(ctx)
 }
 
-func (s viewServiceImpl) Diff(ctx context.Context, src ViewReader, dst ViewReader) ([]View, error) {
+func (s ViewServiceImpl) Diff(ctx context.Context, src ViewReader, dst ViewReader) ([]View, error) {
 	zap.L().Debug("Start Diff")
 	srcList, err := src.List(ctx)
 	if err != nil {
@@ -92,13 +92,12 @@ func (s viewServiceImpl) Diff(ctx context.Context, src ViewReader, dst ViewReade
 	return diffViews, nil
 }
 
-func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst ViewWriter) error {
+func (s ViewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst ViewWriter) error {
 	zap.L().Debug("Src", zap.String("dataset", item.DataSet()), zap.String("table", item.Name()))
 	_, err := dst.Update(ctx, item)
 	if err != nil {
 		zap.L().Debug("Err", zap.String("err", err.Error()))
 	}
-	// viewない
 	if err == viewmanager.NotFoundError {
 		zap.L().Debug("Creating view", zap.String("Dataset", item.DataSet()), zap.String("Table", item.Name()))
 		_, err := dst.Create(ctx, item)
@@ -111,7 +110,7 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 	} 
 	return nil
 }
-func (s viewServiceImpl) applyCachedView(ctx context.Context, item viewmanager.View, dst ViewWriter, listSchedulingMap map[string]string) error {
+func (s ViewServiceImpl) applyCachedView(ctx context.Context, item viewmanager.View, dst ViewWriter, listSchedulingMap map[string]string) error {
 	// スケジューリングクエリの一覧を検索し、item.Setting().Metadata()["view_table"]によっては
 	// テーブルを削除したり、スケジューリングクエリを削除する
 	cachedViewTable := cachedViewTable{item}
@@ -148,19 +147,23 @@ func (s viewServiceImpl) applyCachedView(ctx context.Context, item viewmanager.V
 }
 	return nil
 }
-func (s viewServiceImpl) cachedviewtable(ctx context.Context, item viewmanager.View) error {
+func (s ViewServiceImpl) cachedviewtable(ctx context.Context, item viewmanager.View) error {
 	cachedViewTable := cachedViewTable{item}
 	zap.L().Debug("creating view table",  zap.String("View Table", cachedViewTable.Name()),  zap.String("Dataset", cachedViewTable.DataSet()))
 	// BQ定期ジョブ実行
 
 	m := make(map[string]interface{})
 	m["query"] =  "CREATE OR REPLACE TABLE " + cachedViewTable.DataSet() + "." + cachedViewTable.Name() + " AS SELECT * FROM " + item.DataSet() + "." + item.Name()
-	struct_params, err := structpb.NewStruct(m)
+	structParams, err := structpb.NewStruct(m)
 	if err != nil {
 		zap.L().Debug("Err", zap.String("err", err.Error()))
 		return errors.WithStack(err)
 	}
-	
+	schedulingTime, ok := item.Setting().Metadata()["scheduling_time"].(string)
+	if !ok {
+		zap.L().Debug("Err", zap.String("invalid scheduling_time setting", err.Error()))
+		return errors.WithStack(err)
+	}
 	req := &datatransferpb.CreateTransferConfigRequest{
 		Parent: datatransfer.ProjectPath(os.Getenv("GOOGLE_APPLICATION_PROJECT_ID")),
 		TransferConfig: &datatransferpb.TransferConfig{
@@ -168,8 +171,8 @@ func (s viewServiceImpl) cachedviewtable(ctx context.Context, item viewmanager.V
 				DestinationDatasetId: cachedViewTable.DataSet()},		
 			DisplayName: cachedViewTable.DataSet() + "." + cachedViewTable.Name(),
 			DataSourceId: "scheduled_query",
-			Params: struct_params,
-			Schedule: "every 15 mins",
+			Params: structParams,
+			Schedule: schedulingTime,
 			ScheduleOptions: &datatransferpb.ScheduleOptions{ StartTime: timestamppb.Now()}}}
 	resp, err := s.datatransferClient.CreateTransferConfig(ctx, req)
 	if err != nil {
@@ -181,7 +184,7 @@ func (s viewServiceImpl) cachedviewtable(ctx context.Context, item viewmanager.V
 }
 
 
-func (s viewServiceImpl) Copy(ctx context.Context, src ViewReader, dst ViewWriter) error {
+func (s ViewServiceImpl) Copy(ctx context.Context, src ViewReader, dst ViewWriter) error {
 	srcList, err := src.List(ctx)
 	if err != nil {
 		return errors.WithStack(err)
@@ -222,7 +225,7 @@ func (s viewServiceImpl) Copy(ctx context.Context, src ViewReader, dst ViewWrite
 	return errors.WithStack(multierr.Combine(errs...))
 }
 
-func (s viewServiceImpl) DeleteOld(ctx context.Context, src ViewReader, dst ViewReadWriter) error {
+func (s ViewServiceImpl) DeleteOld(ctx context.Context, src ViewReader, dst ViewReadWriter) error {
 	srcList, err := src.List(ctx)
 	if err != nil {
 		return errors.WithStack(err)
