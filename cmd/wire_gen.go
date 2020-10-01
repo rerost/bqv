@@ -7,9 +7,9 @@ package cmd
 
 import (
 	"cloud.google.com/go/bigquery"
+	"cloud.google.com/go/bigquery/datatransfer/apiv1"
 	"context"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
-	datatransfer "cloud.google.com/go/bigquery/datatransfer/apiv1"
 	"github.com/pkg/errors"
 	"github.com/rerost/bqv/domain/query"
 	"github.com/rerost/bqv/domain/template"
@@ -22,23 +22,23 @@ import (
 // Injectors from wire.go:
 
 func InitializeCmd(ctx context.Context, cfg Config) (*cobra.Command, error) {
-	datatransferclient, err := datatransfer.NewClient(ctx)
+	client, err := NewDataTransferClient(ctx)
 	if err != nil {
 		return nil, err
 	}
-	viewService := viewservice.NewService(*datatransferclient)
+	viewService := viewservice.NewService(client)
 	bqClient, err := NewBQClient(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
 	bqManager := viewmanager.NewBQManager(bqClient)
 	fileManager := NewFileManager(cfg)
-	client, err := NewRawBQClient(ctx, cfg)
+	bqifaceClient, err := NewRawBQClient(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
-	queryService := query.NewQueryService(client)
-	queryResolver := resolver.NewQueryResolver(client)
+	queryService := query.NewQueryService(bqifaceClient)
+	queryResolver := resolver.NewQueryResolver(bqifaceClient)
 	templateService := template.NewTemplateService(queryResolver)
 	command := NewCmdRoot(ctx, viewService, bqManager, fileManager, queryService, templateService)
 	return command, nil
@@ -61,6 +61,14 @@ func NewBQClient(ctx context.Context, cfg Config) (viewmanager.BQClient, error) 
 		return nil, errors.WithStack(err)
 	}
 	return viewmanager.BQClient(c), nil
+}
+
+func NewDataTransferClient(ctx context.Context) (*datatransfer.Client, error) {
+	c, err := datatransfer.NewClient(ctx)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return c, nil
 }
 
 func NewFileManager(cfg Config) viewmanager.FileManager {

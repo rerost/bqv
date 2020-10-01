@@ -8,6 +8,7 @@ import (
 	"cloud.google.com/go/bigquery"
 	"github.com/google/wire"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
+	datatransfer "cloud.google.com/go/bigquery/datatransfer/apiv1"
 	"github.com/pkg/errors"
 	"github.com/rerost/bqv/domain/query"
 	"github.com/rerost/bqv/domain/template"
@@ -34,6 +35,14 @@ func NewBQClient(ctx context.Context, cfg Config) (viewmanager.BQClient, error) 
 	return viewmanager.BQClient(c), nil
 }
 
+func NewDataTransferClient(ctx context.Context) (*datatransfer.Client, error) {
+	c, err := datatransfer.NewClient(ctx)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return c, nil
+}
+
 func NewFileManager(cfg Config) viewmanager.FileManager {
 	return viewmanager.NewFileManager(cfg.Dir)
 }
@@ -46,6 +55,7 @@ func InitializeCmd(ctx context.Context, cfg Config) (*cobra.Command, error) {
 		NewFileManager,
 		NewBQClient,
 		NewRawBQClient,
+		NewDataTransferClient,
 		query.NewQueryService,
 		template.NewTemplateService,
 		resolver.NewQueryResolver,

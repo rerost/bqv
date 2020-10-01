@@ -20,7 +20,7 @@ type View = viewmanager.View
 type ViewReadWriter = viewmanager.ViewReadWriter
 type ViewWriter = viewmanager.ViewWriter
 type ViewReader = viewmanager.ViewReader
-type DataTransferClient = datatransfer.Client
+type DataTransferClient = *datatransfer.Client
 
 type ViewService interface {
 	List(ctx context.Context, src ViewReader) ([]View, error)
@@ -34,23 +34,23 @@ type viewServiceImpl struct {
 	datatransferClient DataTransferClient
 }
 
-type cached_viewtable struct {
+type cachedViewTable struct {
 	view View
 }
 
-func (v cached_viewtable) Name() string {
+func (v cachedViewTable) Name() string {
 	return "Cached_" + v.view.Name()
 }
 
-func (v cached_viewtable) DataSet() string {
+func (v cachedViewTable) DataSet() string {
 	return v.view.DataSet()
 }
 
-func (v cached_viewtable) Query() string {
+func (v cachedViewTable) Query() string {
 	return v.view.Query()
 }
 
-func (v cached_viewtable) Setting() viewmanager.Setting {
+func (v cachedViewTable) Setting() viewmanager.Setting {
 	return v.view.Setting()
 }
 
@@ -92,7 +92,7 @@ func (s viewServiceImpl) Diff(ctx context.Context, src ViewReader, dst ViewReade
 	return diffViews, nil
 }
 
-func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst ViewWriter, cached_map map[string]string) error {
+func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst ViewWriter) error {
 	zap.L().Debug("Src", zap.String("dataset", item.DataSet()), zap.String("table", item.Name()))
 	_, err := dst.Update(ctx, item)
 	if err != nil {
@@ -106,47 +106,38 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 			zap.L().Debug("Failed to create view", zap.String("Dataset", item.DataSet()), zap.String("Table", item.Name()))
 			return errors.WithStack(err)
 		}
-		// ymlファイルのview_tableがTrueだったら、cachedViewTable作成
-		if item.Setting().Metadata()["view_table"] == true {
-			err = s.cachedviewtable(ctx, item)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-		}
 	} else if err != nil {
 		return errors.WithStack(err)
-	} else {
-		// viewがすでにある場合
-		err = s.applycachedview(ctx, item, dst, cached_map)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-	}
+	} 
 	return nil
 }
-func (s viewServiceImpl) applycachedview(ctx context.Context, item viewmanager.View, dst ViewWriter, cached_map map[string]string) error {
+func (s viewServiceImpl) applyCachedView(ctx context.Context, item viewmanager.View, dst ViewWriter, listSchedulingMap map[string]string) error {
 	// スケジューリングクエリの一覧を検索し、item.Setting().Metadata()["view_table"]によっては
 	// テーブルを削除したり、スケジューリングクエリを削除する
-	cachedViewTable := cached_viewtable{item}
+	cachedViewTable := cachedViewTable{item}
+	fmt.Println("CachedViewTable", cachedViewTable)
 
-	_, ok := cached_map[cachedViewTable.DataSet() + "." + cachedViewTable.Name()]
+	_, ok := listSchedulingMap[cachedViewTable.DataSet() + "." + cachedViewTable.Name()]
 	if ok == false {
-		zap.L().Debug("View already exists, but no scheduling query", zap.String("Table", cachedViewTable.Name()))
+		zap.L().Debug("View already exists, but no scheduling query", zap.String("Table", cachedViewTable.Name()), zap.String("Dataset", cachedViewTable.DataSet()))
 		if item.Setting().Metadata()["view_table"] == true {
-			s.cachedviewtable(ctx, item)
+			err := s.cachedviewtable(ctx, item)
+			if err != nil {
+				zap.L().Debug("Delete Scheduling query err", zap.String("err", err.Error()))
+				return errors.WithStack(err)
+			}
 		}
 	} else {
 		if item.Setting().Metadata()["view_table"] == false {
 			zap.L().Debug("Deleting scheduling query and cached table")
 
 			req := &datatransferpb.DeleteTransferConfigRequest{
-				Name: cached_map[cachedViewTable.Name()]}
+				Name: listSchedulingMap[cachedViewTable.DataSet() + "." + cachedViewTable.Name()]}
 			err := s.datatransferClient.DeleteTransferConfig(ctx, req)
 			if err != nil {
 				zap.L().Debug("Delete Scheduling query err", zap.String("err", err.Error()))
 				return errors.WithStack(err)
-			}
-			cachedViewTable := cached_viewtable{item}
+
 			err = dst.Delete(ctx, cachedViewTable)
 			if err != nil {
 				zap.L().Debug("Delete Cached Table err", zap.String("err", err.Error()))
@@ -154,10 +145,11 @@ func (s viewServiceImpl) applycachedview(ctx context.Context, item viewmanager.V
 			}
 		}
 	}
+}
 	return nil
 }
 func (s viewServiceImpl) cachedviewtable(ctx context.Context, item viewmanager.View) error {
-	cachedViewTable := cached_viewtable{item}
+	cachedViewTable := cachedViewTable{item}
 	zap.L().Debug("creating view table",  zap.String("View Table", cachedViewTable.Name()),  zap.String("Dataset", cachedViewTable.DataSet()))
 	// BQ定期ジョブ実行
 
@@ -182,6 +174,7 @@ func (s viewServiceImpl) cachedviewtable(ctx context.Context, item viewmanager.V
 	resp, err := s.datatransferClient.CreateTransferConfig(ctx, req)
 	if err != nil {
 		zap.L().Debug("Err", zap.String("err", err.Error()))
+		return errors.WithStack(err)
 	}
 	zap.L().Debug("scheduling query", zap.String("display_name", resp.GetDisplayName()), zap.String("config_id", resp.GetName()))
 	return nil
@@ -207,17 +200,23 @@ func (s viewServiceImpl) Copy(ctx context.Context, src ViewReader, dst ViewWrite
 		}
 		if err != nil {
 			zap.L().Debug("Err", zap.String("err", err.Error()))
-			return nil
+			return errors.WithStack(err)
 		}
 		scheduling_query_map[resp.GetDisplayName()] = resp.GetName()
 	}
 	var errs []error
 	for _, srcView := range srcList {
-		err := s.copy(ctx, srcView, dst, scheduling_query_map)
+		err := s.copy(ctx, srcView, dst)
 		if err != nil {
 			zap.L().Debug("Failed to copy view", zap.String("Dataset", srcView.DataSet()), zap.String("Table", srcView.Name()))
 			errs = append(errs, errors.WithStack(err))
 		}
+		err = s.applyCachedView(ctx, srcView, dst, scheduling_query_map)
+		if err != nil {
+			zap.L().Debug("Failed to apply cached view", zap.String("Dataset", srcView.DataSet()), zap.String("Table", srcView.Name()))
+			errs = append(errs, errors.WithStack(err))
+		}
+	
 	}
 
 	return errors.WithStack(multierr.Combine(errs...))
