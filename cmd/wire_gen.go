@@ -67,7 +67,7 @@ func NewDataTransferClient(ctx context.Context, cfg Config) (viewservice.ViewSer
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	return viewservice.NewService(c), nil
+	return viewservice.NewService(c, cfg.ProjectID), nil
 }
 
 func NewFileManager(cfg Config) viewmanager.FileManager {

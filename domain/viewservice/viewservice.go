@@ -3,7 +3,6 @@ package viewservice
 import (
 	"context"
 	"fmt"
-	"os"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/api/iterator"
@@ -32,6 +31,7 @@ type ViewServiceImpl struct {
 	source      ViewReader
 	destination ViewWriter
 	datatransferClient DataTransferClient
+	projectID string
 }
 
 type cachedViewTable struct {
@@ -39,7 +39,7 @@ type cachedViewTable struct {
 }
 
 func (v cachedViewTable) Name() string {
-	return "Cached_" + v.view.Name()
+	return "cached_" + v.view.Name()
 }
 
 func (v cachedViewTable) DataSet() string {
@@ -54,8 +54,8 @@ func (v cachedViewTable) Setting() viewmanager.Setting {
 	return v.view.Setting()
 }
 
-func NewService(datatransferClient DataTransferClient) ViewService {
-	return ViewServiceImpl{datatransferClient: datatransferClient}
+func NewService(datatransferClient DataTransferClient, projectID string) ViewService {
+	return ViewServiceImpl{datatransferClient: datatransferClient, projectID: projectID}
 }
 
 func (s ViewServiceImpl) List(ctx context.Context, src ViewReader) ([]View, error) {
@@ -165,7 +165,7 @@ func (s ViewServiceImpl) cachedviewtable(ctx context.Context, item viewmanager.V
 		return errors.WithStack(err)
 	}
 	req := &datatransferpb.CreateTransferConfigRequest{
-		Parent: datatransfer.ProjectPath(os.Getenv("GOOGLE_APPLICATION_PROJECT_ID")),
+		Parent: datatransfer.ProjectPath(s.projectID),
 		TransferConfig: &datatransferpb.TransferConfig{
 			Destination: &datatransferpb.TransferConfig_DestinationDatasetId{
 				DestinationDatasetId: cachedViewTable.DataSet()},		
@@ -183,7 +183,6 @@ func (s ViewServiceImpl) cachedviewtable(ctx context.Context, item viewmanager.V
 	return nil
 }
 
-
 func (s ViewServiceImpl) Copy(ctx context.Context, src ViewReader, dst ViewWriter) error {
 	srcList, err := src.List(ctx)
 	if err != nil {
@@ -192,10 +191,10 @@ func (s ViewServiceImpl) Copy(ctx context.Context, src ViewReader, dst ViewWrite
 
 	// スケジューリングクエリ収集
 	req := &datatransferpb.ListTransferConfigsRequest{
-		Parent: datatransfer.ProjectPath(os.Getenv("GOOGLE_APPLICATION_PROJECT_ID")),
+		Parent: datatransfer.ProjectPath(s.projectID),
 	}
 	it :=  s.datatransferClient.ListTransferConfigs(ctx, req)
-	var scheduling_query_map = map[string] string{}
+	schedulingQueryMap := map[string] string{}
 	for {
 		resp, err := it.Next()
 		if err == iterator.Done {
@@ -205,7 +204,7 @@ func (s ViewServiceImpl) Copy(ctx context.Context, src ViewReader, dst ViewWrite
 			zap.L().Debug("Err", zap.String("err", err.Error()))
 			return errors.WithStack(err)
 		}
-		scheduling_query_map[resp.GetDisplayName()] = resp.GetName()
+		schedulingQueryMap[resp.GetDisplayName()] = resp.GetName()
 	}
 	var errs []error
 	for _, srcView := range srcList {
@@ -214,7 +213,7 @@ func (s ViewServiceImpl) Copy(ctx context.Context, src ViewReader, dst ViewWrite
 			zap.L().Debug("Failed to copy view", zap.String("Dataset", srcView.DataSet()), zap.String("Table", srcView.Name()))
 			errs = append(errs, errors.WithStack(err))
 		}
-		err = s.applyCachedView(ctx, srcView, dst, scheduling_query_map)
+		err = s.applyCachedView(ctx, srcView, dst, schedulingQueryMap)
 		if err != nil {
 			zap.L().Debug("Failed to apply cached view", zap.String("Dataset", srcView.DataSet()), zap.String("Table", srcView.Name()))
 			errs = append(errs, errors.WithStack(err))
