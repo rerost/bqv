@@ -98,6 +98,31 @@ func (s viewServiceImpl) Diff(ctx context.Context, src ViewReader, dst ViewReade
 	return diffViews, nil
 }
 
+func doPeriodically(t time.Time, item viewmanager.View, dst ViewWriter, ctx context.Context) {
+	// 定期update
+	_, err := dst.Update(ctx, item)
+	if err != nil {
+		zap.L().Debug("Err", zap.String("err", err.Error()))
+	}
+}
+
+func periodicLoop_forDay(ctx context.Context, item viewmanager.View, dst ViewWriter) {
+	// 24時間経つと定期実行する
+    ticker := time.NewTicker(24 * time.Hour)
+    defer ticker.Stop()
+    doPeriodically(time.Now(), item, dst, ctx)
+    for {
+        select {
+		// キャンセルした場合終了
+        case <-ctx.Done():
+			return
+		// tickerチャネル受信した場合定期実行
+        case t := <-ticker.C:
+            doPeriodically(t, item, dst, ctx)
+        }
+    }
+}
+
 func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst ViewWriter) error {
 	zap.L().Debug("Src", zap.String("dataset", item.DataSet()), zap.String("table", item.Name()))
 	_, err := dst.Update(ctx, item)
@@ -111,6 +136,18 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 			zap.L().Debug("Failed to create view", zap.String("Dataset", item.DataSet()), zap.String("Table", item.Name()))
 			return errors.WithStack(err)
 		}
+		
+		item_for_table := ... // 中身はほぼ同じで名前だけ変えたテーブルを作りたい、、
+		_, err := dst.Create(ctx, item_for_table)
+		if err != nil {
+			zap.L().Debug("Failed to create view", zap.String("Dataset", item_for_table.DataSet()), zap.String("Table", item_for_table.Name()))
+			return errors.WithStack(err)
+		}
+		// loop用コンテキストと何かあった時に停止する用のキャンセルを作成
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go periodicLoop_forDay(ctx, item, dst)
+
 	} else if err != nil {
 		return errors.WithStack(err)
 	} 
