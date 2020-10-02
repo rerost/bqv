@@ -3,20 +3,25 @@ package viewservice
 import (
 	"context"
 	"fmt"
-	"strings"
-	"time"
-
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"github.com/google/go-cmp/cmp"
+	"google.golang.org/api/iterator"
 	"github.com/pkg/errors"
 	"github.com/rerost/bqv/domain/viewmanager"
+	datatransfer "cloud.google.com/go/bigquery/datatransfer/apiv1"
+	datatransferpb "google.golang.org/genproto/googleapis/cloud/bigquery/datatransfer/v1"
+	"google.golang.org/protobuf/types/known/structpb"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
+
+const DATASOURCEID string = "scheduled_query"
 
 type View = viewmanager.View
 type ViewReadWriter = viewmanager.ViewReadWriter
 type ViewWriter = viewmanager.ViewWriter
 type ViewReader = viewmanager.ViewReader
+type DataTransferClient = *datatransfer.Client
 
 type ViewService interface {
 	List(ctx context.Context, src ViewReader) ([]View, error)
@@ -27,10 +32,36 @@ type ViewService interface {
 type viewServiceImpl struct {
 	source      ViewReader
 	destination ViewWriter
+	datatransferClient DataTransferClient
+	projectID string
 }
 
-func NewService() ViewService {
-	return viewServiceImpl{}
+type cachedViewTable struct {
+	view View
+}
+
+func (v cachedViewTable) Name() string {
+	return "cached_" + v.view.Name()
+}
+
+func (v cachedViewTable) NameWithDataset() string {
+	return v.view.DataSet() + "." + v.view.Name()
+}
+
+func (v cachedViewTable) DataSet() string {
+	return v.view.DataSet()
+}
+
+func (v cachedViewTable) Query() string {
+	return v.view.Query()
+}
+
+func (v cachedViewTable) Setting() viewmanager.Setting {
+	return v.view.Setting()
+}
+
+func NewService(datatransferClient DataTransferClient, projectID string) ViewService {
+	return viewServiceImpl{datatransferClient: datatransferClient, projectID: projectID}
 }
 
 func (s viewServiceImpl) List(ctx context.Context, src ViewReader) ([]View, error) {
@@ -119,8 +150,74 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 
 	} else if err != nil {
 		return errors.WithStack(err)
-	}
+	} 
+	return nil
+}
+func (s viewServiceImpl) applyCachedView(ctx context.Context, item viewmanager.View, dst ViewWriter, schedulingQueryMap map[string]string) error {
+	cachedViewTable := cachedViewTable{item}
 
+	_, ok := schedulingQueryMap[cachedViewTable.NameWithDataset()]
+	if !ok && item.Setting().Metadata()["view_table"].(bool) {
+		zap.L().Debug("View already exists, but no scheduling query", zap.String("Table", cachedViewTable.Name()), zap.String("Dataset", cachedViewTable.DataSet()))
+		err := s.cacheViewTable(ctx, item)
+		if err != nil {
+			zap.L().Debug("Delete Scheduling query err", zap.String("err", err.Error()))
+			return errors.WithStack(err)
+			}
+	} else {
+		if !item.Setting().Metadata()["view_table"].(bool) {
+			zap.L().Debug("Deleting scheduling query and cached table")
+
+			req := &datatransferpb.DeleteTransferConfigRequest{
+				Name: schedulingQueryMap[cachedViewTable.NameWithDataset()]}
+			err := s.datatransferClient.DeleteTransferConfig(ctx, req)
+			if err != nil {
+				zap.L().Debug("Delete Scheduling query err", zap.String("err", err.Error()))
+				return errors.WithStack(err)
+
+			err = dst.Delete(ctx, cachedViewTable)
+			if err != nil {
+				zap.L().Debug("Delete Cached Table err", zap.String("err", err.Error()))
+				return errors.WithStack(err)
+			}
+		}
+	}
+}
+	return nil
+}
+func (s viewServiceImpl) cacheViewTable(ctx context.Context, item viewmanager.View) error {
+	cachedViewTable := cachedViewTable{item}
+	zap.L().Debug("Creating view table",  zap.String("View Table", cachedViewTable.Name()),  zap.String("Dataset", cachedViewTable.DataSet()))
+	// BQ定期ジョブ実行
+
+	m := make(map[string]interface{})
+	m["query"] =  "CREATE OR REPLACE TABLE " + cachedViewTable.NameWithDataset() + " AS SELECT * FROM " + item.DataSet() + "." + item.Name()
+	structParams, err := structpb.NewStruct(m)
+	if err != nil {
+		zap.L().Debug("Err", zap.String("err", err.Error()))
+		return errors.WithStack(err)
+	}
+	schedulingTime, ok := item.Setting().Metadata()["scheduling_time"].(string)
+	if !ok {
+		zap.L().Debug("Err", zap.String("invalid scheduling_time setting", err.Error()))
+		return errors.WithStack(err)
+	}
+	req := &datatransferpb.CreateTransferConfigRequest{
+		Parent: datatransfer.ProjectPath(s.projectID),
+		TransferConfig: &datatransferpb.TransferConfig{
+			Destination: &datatransferpb.TransferConfig_DestinationDatasetId{
+				DestinationDatasetId: cachedViewTable.DataSet()},		
+			DisplayName: cachedViewTable.NameWithDataset(),
+			DataSourceId: DATASOURCEID,
+			Params: structParams,
+			Schedule: schedulingTime,
+			ScheduleOptions: &datatransferpb.ScheduleOptions{ StartTime: timestamppb.Now()}}}
+	resp, err := s.datatransferClient.CreateTransferConfig(ctx, req)
+	if err != nil {
+		zap.L().Debug("Err", zap.String("err", err.Error()))
+		return errors.WithStack(err)
+	}
+	zap.L().Debug("Set scheduling query", zap.String("display_name", resp.GetDisplayName()), zap.String("config_id", resp.GetName()))
 	return nil
 }
 
@@ -130,6 +227,23 @@ func (s viewServiceImpl) Copy(ctx context.Context, src ViewReader, dst ViewWrite
 		return errors.WithStack(err)
 	}
 
+	// スケジューリングクエリ収集
+	req := &datatransferpb.ListTransferConfigsRequest{
+		Parent: datatransfer.ProjectPath(s.projectID),
+	}
+	it :=  s.datatransferClient.ListTransferConfigs(ctx, req)
+	schedulingQueryMap := map[string]string{}
+	for {
+		resp, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			zap.L().Debug("Err", zap.String("err", err.Error()))
+			return errors.WithStack(err)
+		}
+		schedulingQueryMap[resp.GetDisplayName()] = resp.GetName()
+	}
 	var errs []error
 	for _, srcView := range srcList {
 		err := s.copy(ctx, srcView, dst)
@@ -137,6 +251,12 @@ func (s viewServiceImpl) Copy(ctx context.Context, src ViewReader, dst ViewWrite
 			zap.L().Debug("Failed to copy view", zap.String("Dataset", srcView.DataSet()), zap.String("Table", srcView.Name()))
 			errs = append(errs, errors.WithStack(err))
 		}
+		err = s.applyCachedView(ctx, srcView, dst, schedulingQueryMap)
+		if err != nil {
+			zap.L().Debug("Failed to apply cached view", zap.String("Dataset", srcView.DataSet()), zap.String("Table", srcView.Name()))
+			errs = append(errs, errors.WithStack(err))
+		}
+	
 	}
 
 	return errors.WithStack(multierr.Combine(errs...))
