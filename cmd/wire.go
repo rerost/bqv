@@ -35,12 +35,16 @@ func NewBQClient(ctx context.Context, cfg Config) (viewmanager.BQClient, error) 
 	return viewmanager.BQClient(c), nil
 }
 
-func NewDataTransferClient(ctx context.Context, cfg Config) (viewservice.ViewService, error) {
+func NewDataTransferClient(ctx context.Context) (*datatransfer.Client, error) {
 	c, err := datatransfer.NewClient(ctx)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	return viewservice.NewService(c, cfg.ProjectID), nil
+	return c, nil
+}
+
+func NewViewService(datatransferClient *datatransfer.Client, cfg Config) viewservice.ViewService {
+	return viewservice.NewService(datatransferClient, cfg.ProjectID)
 }
 
 func NewFileManager(cfg Config) viewmanager.FileManager {
@@ -55,6 +59,7 @@ func InitializeCmd(ctx context.Context, cfg Config) (*cobra.Command, error) {
 		NewBQClient,
 		NewRawBQClient,
 		NewDataTransferClient,
+		NewViewService,
 		query.NewQueryService,
 		template.NewTemplateService,
 		resolver.NewQueryResolver,
