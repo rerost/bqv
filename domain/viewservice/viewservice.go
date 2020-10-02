@@ -121,17 +121,15 @@ func (s viewServiceImpl) applyCachedView(ctx context.Context, item viewmanager.V
 	fmt.Println("CachedViewTable", cachedViewTable)
 
 	_, ok := schedulingQueryMap[cachedViewTable.NameWithDataset()]
-	if ok == false {
+	if !ok && item.Setting().Metadata()["view_table"].(bool) {
 		zap.L().Debug("View already exists, but no scheduling query", zap.String("Table", cachedViewTable.Name()), zap.String("Dataset", cachedViewTable.DataSet()))
-		if item.Setting().Metadata()["view_table"] == true {
-			err := s.cacheViewTable(ctx, item)
-			if err != nil {
-				zap.L().Debug("Delete Scheduling query err", zap.String("err", err.Error()))
-				return errors.WithStack(err)
+		err := s.cacheViewTable(ctx, item)
+		if err != nil {
+			zap.L().Debug("Delete Scheduling query err", zap.String("err", err.Error()))
+			return errors.WithStack(err)
 			}
-		}
 	} else {
-		if item.Setting().Metadata()["view_table"] == false {
+		if !item.Setting().Metadata()["view_table"].(bool) {
 			zap.L().Debug("Deleting scheduling query and cached table")
 
 			req := &datatransferpb.DeleteTransferConfigRequest{
