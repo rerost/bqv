@@ -118,7 +118,6 @@ func (s viewServiceImpl) copy(ctx context.Context, item viewmanager.View, dst Vi
 }
 func (s viewServiceImpl) applyCachedView(ctx context.Context, item viewmanager.View, dst ViewWriter, schedulingQueryMap map[string]string) error {
 	cachedViewTable := cachedViewTable{item}
-	fmt.Println("CachedViewTable", cachedViewTable)
 
 	_, ok := schedulingQueryMap[cachedViewTable.NameWithDataset()]
 	if !ok && item.Setting().Metadata()["view_table"].(bool) {
