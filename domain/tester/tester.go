@@ -28,7 +28,7 @@ type testServiceImpl struct {
 func NewTestService(queryService query.QueryService) TestService {
 	return &testServiceImpl{
 		queryService:   queryService,
-		targetViewName: "$TARGET",
+		targetViewName: "BQV_TESTING_TABLE",
 		tmpTableName:   "bqv_testing_table",
 	}
 }
