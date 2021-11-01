@@ -34,9 +34,11 @@ func (q *queryServiceImpl) Exec(ctx context.Context, query string) (err error) {
 	status, err := j.Wait(ctx)
 	zap.L().Debug("End query", zap.String("job_id", j.ID()))
 	if err != nil {
+		zap.L().Debug("Wait err", zap.String("job_id", j.ID()), zap.String("query", query))
 		return errors.WithStack(err)
 	}
 	if err := status.Err(); err != nil {
+		zap.L().Debug("Status err", zap.String("job_id", j.ID()), zap.String("query", query))
 		return errors.WithStack(err)
 	}
 
