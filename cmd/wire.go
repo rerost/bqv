@@ -12,6 +12,7 @@ import (
 	"github.com/rerost/bqv/domain/query"
 	"github.com/rerost/bqv/domain/template"
 	"github.com/rerost/bqv/domain/template/resolver"
+	"github.com/rerost/bqv/domain/tester"
 	"github.com/rerost/bqv/domain/viewmanager"
 	"github.com/rerost/bqv/domain/viewservice"
 	"github.com/spf13/cobra"
@@ -49,6 +50,7 @@ func InitializeCmd(ctx context.Context, cfg Config) (*cobra.Command, error) {
 		query.NewQueryService,
 		template.NewTemplateService,
 		resolver.NewQueryResolver,
+		tester.NewTestService,
 	)
 	return nil, nil
 }
