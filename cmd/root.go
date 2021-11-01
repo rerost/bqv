@@ -7,6 +7,7 @@ import (
 	"github.com/rerost/bqv/cmd/view"
 	"github.com/rerost/bqv/domain/query"
 	"github.com/rerost/bqv/domain/template"
+	"github.com/rerost/bqv/domain/tester"
 	"github.com/rerost/bqv/domain/viewmanager"
 	"github.com/rerost/bqv/domain/viewservice"
 	"github.com/spf13/cobra"
@@ -19,6 +20,7 @@ func NewCmdRoot(
 	fileManager viewmanager.FileManager,
 	queryService query.QueryService,
 	templateService template.TemplateService,
+	testService tester.TestService,
 ) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "bqv",
@@ -27,7 +29,7 @@ func NewCmdRoot(
 
 	cmd.AddCommand(
 		view.NewCmd(ctx, viewService, bqManager, fileManager),
-		alpha.NewCmd(ctx, queryService, templateService),
+		alpha.NewCmd(ctx, queryService, templateService, testService),
 	)
 
 	return cmd
