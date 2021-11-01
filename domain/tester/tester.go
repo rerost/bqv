@@ -3,7 +3,7 @@ package tester
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"strings"
 	"text/template"
 
 	"github.com/pkg/errors"
@@ -57,10 +57,9 @@ func (t *testServiceImpl) testQuery(viewQuery string, assertQuery string) string
 		}{
 			TmpTableName: t.tmpTableName,
 			ViewQuery:    viewQuery,
-			AssertQuery:  assertQuery,
+			AssertQuery:  strings.ReplaceAll(assertQuery, t.targetViewName, t.tmpTableName),
 		})
 	testQuery := b.String()
-	fmt.Println(testQuery)
 
 	return testQuery
 }
