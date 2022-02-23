@@ -6,35 +6,36 @@ package mock_bqiface
 
 import (
 	context "context"
+	reflect "reflect"
+
 	gomock "github.com/golang/mock/gomock"
 	bqiface "github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
-	reflect "reflect"
 )
 
-// MockDataset is a mock of Dataset interface
+// MockDataset is a mock of Dataset interface.
 type MockDataset struct {
 	ctrl     *gomock.Controller
 	recorder *MockDatasetMockRecorder
 }
 
-// MockDatasetMockRecorder is the mock recorder for MockDataset
+// MockDatasetMockRecorder is the mock recorder for MockDataset.
 type MockDatasetMockRecorder struct {
 	mock *MockDataset
 }
 
-// NewMockDataset creates a new mock instance
+// NewMockDataset creates a new mock instance.
 func NewMockDataset(ctrl *gomock.Controller) *MockDataset {
 	mock := &MockDataset{ctrl: ctrl}
 	mock.recorder = &MockDatasetMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockDataset) EXPECT() *MockDatasetMockRecorder {
 	return m.recorder
 }
 
-// Create mocks base method
+// Create mocks base method.
 func (m *MockDataset) Create(arg0 context.Context, arg1 *bqiface.DatasetMetadata) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", arg0, arg1)
@@ -42,13 +43,13 @@ func (m *MockDataset) Create(arg0 context.Context, arg1 *bqiface.DatasetMetadata
 	return ret0
 }
 
-// Create indicates an expected call of Create
+// Create indicates an expected call of Create.
 func (mr *MockDatasetMockRecorder) Create(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockDataset)(nil).Create), arg0, arg1)
 }
 
-// DatasetID mocks base method
+// DatasetID mocks base method.
 func (m *MockDataset) DatasetID() string {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DatasetID")
@@ -56,13 +57,13 @@ func (m *MockDataset) DatasetID() string {
 	return ret0
 }
 
-// DatasetID indicates an expected call of DatasetID
+// DatasetID indicates an expected call of DatasetID.
 func (mr *MockDatasetMockRecorder) DatasetID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DatasetID", reflect.TypeOf((*MockDataset)(nil).DatasetID))
 }
 
-// Delete mocks base method
+// Delete mocks base method.
 func (m *MockDataset) Delete(arg0 context.Context) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete", arg0)
@@ -70,13 +71,13 @@ func (m *MockDataset) Delete(arg0 context.Context) error {
 	return ret0
 }
 
-// Delete indicates an expected call of Delete
+// Delete indicates an expected call of Delete.
 func (mr *MockDatasetMockRecorder) Delete(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockDataset)(nil).Delete), arg0)
 }
 
-// DeleteWithContents mocks base method
+// DeleteWithContents mocks base method.
 func (m *MockDataset) DeleteWithContents(arg0 context.Context) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteWithContents", arg0)
@@ -84,13 +85,13 @@ func (m *MockDataset) DeleteWithContents(arg0 context.Context) error {
 	return ret0
 }
 
-// DeleteWithContents indicates an expected call of DeleteWithContents
+// DeleteWithContents indicates an expected call of DeleteWithContents.
 func (mr *MockDatasetMockRecorder) DeleteWithContents(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWithContents", reflect.TypeOf((*MockDataset)(nil).DeleteWithContents), arg0)
 }
 
-// Metadata mocks base method
+// Metadata mocks base method.
 func (m *MockDataset) Metadata(arg0 context.Context) (*bqiface.DatasetMetadata, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Metadata", arg0)
@@ -99,13 +100,13 @@ func (m *MockDataset) Metadata(arg0 context.Context) (*bqiface.DatasetMetadata, 
 	return ret0, ret1
 }
 
-// Metadata indicates an expected call of Metadata
+// Metadata indicates an expected call of Metadata.
 func (mr *MockDatasetMockRecorder) Metadata(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadata", reflect.TypeOf((*MockDataset)(nil).Metadata), arg0)
 }
 
-// ProjectID mocks base method
+// ProjectID mocks base method.
 func (m *MockDataset) ProjectID() string {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ProjectID")
@@ -113,13 +114,13 @@ func (m *MockDataset) ProjectID() string {
 	return ret0
 }
 
-// ProjectID indicates an expected call of ProjectID
+// ProjectID indicates an expected call of ProjectID.
 func (mr *MockDatasetMockRecorder) ProjectID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProjectID", reflect.TypeOf((*MockDataset)(nil).ProjectID))
 }
 
-// Table mocks base method
+// Table mocks base method.
 func (m *MockDataset) Table(arg0 string) bqiface.Table {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Table", arg0)
@@ -127,13 +128,13 @@ func (m *MockDataset) Table(arg0 string) bqiface.Table {
 	return ret0
 }
 
-// Table indicates an expected call of Table
+// Table indicates an expected call of Table.
 func (mr *MockDatasetMockRecorder) Table(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Table", reflect.TypeOf((*MockDataset)(nil).Table), arg0)
 }
 
-// Tables mocks base method
+// Tables mocks base method.
 func (m *MockDataset) Tables(arg0 context.Context) bqiface.TableIterator {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tables", arg0)
@@ -141,13 +142,13 @@ func (m *MockDataset) Tables(arg0 context.Context) bqiface.TableIterator {
 	return ret0
 }
 
-// Tables indicates an expected call of Tables
+// Tables indicates an expected call of Tables.
 func (mr *MockDatasetMockRecorder) Tables(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tables", reflect.TypeOf((*MockDataset)(nil).Tables), arg0)
 }
 
-// Update mocks base method
+// Update mocks base method.
 func (m *MockDataset) Update(arg0 context.Context, arg1 bqiface.DatasetMetadataToUpdate, arg2 string) (*bqiface.DatasetMetadata, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", arg0, arg1, arg2)
@@ -156,19 +157,19 @@ func (m *MockDataset) Update(arg0 context.Context, arg1 bqiface.DatasetMetadataT
 	return ret0, ret1
 }
 
-// Update indicates an expected call of Update
+// Update indicates an expected call of Update.
 func (mr *MockDatasetMockRecorder) Update(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockDataset)(nil).Update), arg0, arg1, arg2)
 }
 
-// embedToIncludeNewMethods mocks base method
+// embedToIncludeNewMethods mocks base method.
 func (m *MockDataset) embedToIncludeNewMethods() {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "embedToIncludeNewMethods")
 }
 
-// embedToIncludeNewMethods indicates an expected call of embedToIncludeNewMethods
+// embedToIncludeNewMethods indicates an expected call of embedToIncludeNewMethods.
 func (mr *MockDatasetMockRecorder) embedToIncludeNewMethods() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "embedToIncludeNewMethods", reflect.TypeOf((*MockDataset)(nil).embedToIncludeNewMethods))
