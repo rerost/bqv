@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"cloud.google.com/go/bigquery"
 	"github.com/googleapis/google-cloud-go-testing/bigquery/bqiface"
@@ -64,7 +65,7 @@ func (b bqView) Setting() Setting {
 
 func (b BQManager) List(ctx context.Context) ([]View, error) {
 	datasets := b.bqClient.Datasets(ctx)
-	views := []View{}
+	var views []View
 	for {
 		dataset, err := datasets.Next()
 		if err == iterator.Done {
@@ -89,14 +90,22 @@ func (b BQManager) List(ctx context.Context) ([]View, error) {
 				return nil, errors.WithStack(err)
 			}
 
-			if tmd.Type != bigquery.ViewTable {
+			if tmd.Type != bigquery.ViewTable && tmd.Type != bigquery.MaterializedView {
 				continue
+			}
+
+			metadata, err := b.convertTmdToMetadata(tmd)
+			if err != nil {
+				return nil, errors.WithStack(err)
 			}
 
 			views = append(views, bqView{
 				dataSet: dataset.DatasetID(),
 				name:    table.TableID(),
 				query:   tmd.ViewQuery,
+				setting: bqSetting{
+					metadata: metadata,
+				},
 			})
 		}
 	}
@@ -145,7 +154,7 @@ func (b BQManager) Create(ctx context.Context, view View) (View, error) {
 		}
 	}
 	t := ds.Table(view.Name())
-	tmd, err := b.converToTmd(view)
+	tmd, err := b.convertToTmd(view)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -164,7 +173,7 @@ func (b BQManager) Create(ctx context.Context, view View) (View, error) {
 func (b BQManager) Update(ctx context.Context, view View) (View, error) {
 	ds := b.bqClient.Dataset(datasetPrefixForTest + view.DataSet())
 	t := ds.Table(view.Name())
-	tmd, err := b.converToTmd(view)
+	tmd, err := b.convertToTmd(view)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -213,7 +222,7 @@ func (b BQManager) convertTmdToMetadata(tmd *bigquery.TableMetadata) (map[string
 	return res, nil
 }
 
-func (b BQManager) converToTmd(view View) (bigquery.TableMetadata, error) {
+func (b BQManager) convertToTmd(view View) (bigquery.TableMetadata, error) {
 	var description string
 	{
 		d := view.Setting().Metadata()["description"]
@@ -235,23 +244,58 @@ func (b BQManager) converToTmd(view View) (bigquery.TableMetadata, error) {
 			}
 		}
 	}
-	return bigquery.TableMetadata{
+
+	metadata := bigquery.TableMetadata{
 		Name:        view.Name(),
-		ViewQuery:   view.Query(),
 		Description: description,
 		Labels:      labels,
-	}, nil
+	}
+
+	_, existMvDefData := view.Setting().Metadata()["materializedView"]
+	if existMvDefData {
+		mvDef, err := b.convertToMvd(view)
+		if err != nil {
+			panic(err)
+		}
+		metadata.MaterializedView = &mvDef
+	} else {
+		metadata.ViewQuery = view.Query()
+	}
+
+	return metadata, nil
 }
 
 func (b BQManager) convertTmdToForUpdate(tmd bigquery.TableMetadata) (bigquery.TableMetadataToUpdate, error) {
 	tmdForUpdate := bigquery.TableMetadataToUpdate{
 		Name:        tmd.Name,
-		ViewQuery:   tmd.ViewQuery,
 		Description: tmd.Description,
 	}
 
 	for k, v := range tmd.Labels {
 		tmdForUpdate.SetLabel(k, v)
 	}
+	if tmd.ViewQuery == "" {
+		// Update MaterializedView
+		tmdForUpdate.MaterializedView = tmd.MaterializedView
+	} else {
+		// Update View
+		tmdForUpdate.ViewQuery = tmd.ViewQuery
+	}
+
 	return tmdForUpdate, nil
+}
+
+func (b BQManager) convertToMvd(view View) (bigquery.MaterializedViewDefinition, error) {
+	mvDefData, existMvDefData := view.Setting().Metadata()["materializedView"]
+	if !existMvDefData {
+		return bigquery.MaterializedViewDefinition{} ,nil
+	}
+	zap.L().Debug("MaterializedView info", zap.String("mterializedView info", fmt.Sprintf("%v", mvDefData)))
+	mvDef := bigquery.MaterializedViewDefinition{
+		Query: view.Query(),
+		EnableRefresh: mvDefData.(map[interface {}]interface {})["enableRefresh"].(bool),
+		RefreshInterval:  time.Duration(mvDefData.(map[interface {}]interface {})["refreshInterval"].(int)) * time.Millisecond,
+	}
+	zap.L().Debug("Converted MaterializedViewDef", zap.String("MaterializedViewDef", fmt.Sprintf("%v", mvDef)))
+	return mvDef, nil
 }

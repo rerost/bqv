@@ -43,7 +43,7 @@ func (s viewServiceImpl) Diff(ctx context.Context, src ViewReader, dst ViewReade
 		return nil, errors.WithStack(err)
 	}
 
-	diffViews := []View{}
+	var diffViews []View
 	for _, srcView := range srcList {
 		dstView, err := dst.Get(ctx, srcView.DataSet(), srcView.Name())
 		if err == viewmanager.NotFoundError {
