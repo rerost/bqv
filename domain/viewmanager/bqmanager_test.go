@@ -19,9 +19,9 @@ var (
 )
 
 type dummyView struct {
-	dataset string
-	name    string
-	query   string
+	dataset  string
+	name     string
+	query    string
 	settings dummyViewSetting
 }
 
@@ -63,8 +63,8 @@ func TestCreateView(t *testing.T) {
 	bqManager := viewmanager.NewBQManager(bqClient)
 	_, err = bqManager.Create(ctx, dummyView{
 		dataset: "test",
-		name: "test_create_view",
-		query: "SELECT 1",
+		name:    "test_create_view",
+		query:   "SELECT 1",
 	})
 	if err != nil {
 		t.Error(err)
@@ -86,8 +86,8 @@ func TestCreateViewWithMetadata(t *testing.T) {
 	bqManager := viewmanager.NewBQManager(bqClient)
 	view, err := bqManager.Create(ctx, dummyView{
 		dataset: "test",
-		name: "test_create_view_with_metadata",
-		query: "SELECT 1",
+		name:    "test_create_view_with_metadata",
+		query:   "SELECT 1",
 		settings: dummyViewSetting{
 			metadata: map[string]interface{}{
 				"description": "test view",
@@ -104,7 +104,7 @@ func TestCreateViewWithMetadata(t *testing.T) {
 	}
 	resultTable := bqClient.Dataset(view.DataSet()).Table("test_create_view_with_metadata")
 	resultMetadata, _ := resultTable.Metadata(ctx)
-	assert.Equal(t, resultMetadata.Description,"test view")
+	assert.Equal(t, resultMetadata.Description, "test view")
 	assert.Equal(
 		t,
 		resultMetadata.Labels,
@@ -147,13 +147,13 @@ func TestCreateMaterializedView(t *testing.T) {
 	bqManager := viewmanager.NewBQManager(bqClient)
 	view, err := bqManager.Create(ctx, dummyView{
 		dataset: "test",
-		name: "test_create_materialized_view",
-		query: expectedQuery,
+		name:    "test_create_materialized_view",
+		query:   expectedQuery,
 		settings: dummyViewSetting{
 			metadata: map[string]interface{}{
 				"materializedView": map[interface{}]interface{}{
 					"refreshInterval": 900000,
-					"enableRefresh": true,
+					"enableRefresh":   true,
 				},
 			},
 		},
@@ -165,7 +165,7 @@ func TestCreateMaterializedView(t *testing.T) {
 	resultTable := bqClient.Dataset(view.DataSet()).Table("test_create_materialized_view")
 	resultMetadata, _ := resultTable.Metadata(ctx)
 	assert.Equal(t, resultMetadata.MaterializedView.Query, expectedQuery)
-	assert.Equal(t, resultMetadata.MaterializedView.RefreshInterval, time.Duration(900000) * time.Millisecond)
+	assert.Equal(t, resultMetadata.MaterializedView.RefreshInterval, time.Duration(900000)*time.Millisecond)
 	assert.Equal(t, resultMetadata.MaterializedView.EnableRefresh, true)
 
 }

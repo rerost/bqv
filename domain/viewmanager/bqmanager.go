@@ -317,13 +317,13 @@ func (b BQManager) convertTmdToForUpdate(tmd bigquery.TableMetadata) (bigquery.T
 func (b BQManager) convertToMvd(view View) (bigquery.MaterializedViewDefinition, error) {
 	mvDefData, existMvDefData := view.Setting().Metadata()["materializedView"]
 	if !existMvDefData {
-		return bigquery.MaterializedViewDefinition{} ,nil
+		return bigquery.MaterializedViewDefinition{}, nil
 	}
 	zap.L().Debug("MaterializedView info", zap.String("mterializedView info", fmt.Sprintf("%v", mvDefData)))
 	mvDef := bigquery.MaterializedViewDefinition{
-		Query: view.Query(),
-		EnableRefresh: mvDefData.(map[interface {}]interface {})["enableRefresh"].(bool),
-		RefreshInterval:  time.Duration(mvDefData.(map[interface {}]interface {})["refreshInterval"].(int)) * time.Millisecond,
+		Query:           view.Query(),
+		EnableRefresh:   mvDefData.(map[interface{}]interface{})["enableRefresh"].(bool),
+		RefreshInterval: time.Duration(mvDefData.(map[interface{}]interface{})["refreshInterval"].(int)) * time.Millisecond,
 	}
 	zap.L().Debug("Converted MaterializedViewDef", zap.String("MaterializedViewDef", fmt.Sprintf("%v", mvDef)))
 	return mvDef, nil
