@@ -1,0 +1,8 @@
+metadata:
+  description: test materialized view
+  labels:
+    app: test
+    role: test
+  materializedView:
+    enableRefresh: true
+    refreshInterval: 900000  # millisecond

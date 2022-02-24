@@ -59,7 +59,7 @@ func (f FileManager) List(ctx context.Context) ([]View, error) {
 		return nil, errors.WithStack(err)
 	}
 
-	views := []View{}
+	var views []View
 	for _, file := range files {
 		if !file.IsDir() {
 			return nil, errors.Wrap(errors.New("Unexpected file found"), file.Name())
