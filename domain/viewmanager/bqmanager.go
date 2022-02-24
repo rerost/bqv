@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"time"
 
 	"cloud.google.com/go/bigquery"
@@ -173,6 +174,10 @@ func (b BQManager) Create(ctx context.Context, view View) (View, error) {
 func (b BQManager) Update(ctx context.Context, view View) (View, error) {
 	ds := b.bqClient.Dataset(datasetPrefixForTest + view.DataSet())
 	t := ds.Table(view.Name())
+	oldMeta, err := t.Metadata(ctx)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 	tmd, err := b.convertToTmd(view)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -181,7 +186,31 @@ func (b BQManager) Update(ctx context.Context, view View) (View, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	_, err = t.Update(ctx, tmdForUpdate, "")
+
+	if reflect.ValueOf(oldMeta.MaterializedView).IsNil() {
+		// Update view
+		_, err = t.Update(ctx, tmdForUpdate, "")
+	} else {
+		if oldMeta.MaterializedView.Query == view.Query() {
+			// Update materialized view metadata
+			_, err = t.Update(ctx, tmdForUpdate, "")
+		} else {
+			// Update materialized view query and metadata
+			zap.L().Warn(
+				"Updating materialized view query is not yet supported. Updating with Delete and Create...",
+				zap.String("view name", view.Name()),
+			)
+			err = t.Delete(ctx)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+			err = t.Create(ctx, &tmd)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+		}
+	}
+
 	if err != nil {
 		zap.L().Debug("Failed to update view", zap.String("err", err.Error()))
 		if e, ok := err.(*googleapi.Error); ok && e.Code == 404 {
